@@ -1,0 +1,22 @@
+/* --- Dropdown Visibility Fix (Login & überall) --- */
+select, select option {
+  background-color: #1f1f1f;   /* dunkles Grau passend zum Theme */
+  color: #f5f5f5;              /* heller Text */
+  border: 1px solid #3a3a3a;
+}
+
+select:focus, select:hover {
+  outline: none;
+  border-color: #d4af37;       /* goldener Fokus */
+}
+
+/* bessere Lesbarkeit bei Auswahl/Hover */
+option:hover, option:checked {
+  background-color: #2c2c2c;
+  color: #fff;
+}
+
+/* iOS/Safari Rendering etwas heller */
+@supports (-webkit-touch-callout: none) {
+  select, select option { color: #fff; }
+}
