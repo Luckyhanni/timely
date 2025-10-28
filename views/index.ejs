@@ -52,7 +52,7 @@
         <div class="text-lg font-semibold mb-3">Zusammenfassung</div>
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <div>Arbeitszeit</div><div class="font-semibold"><%= Math.floor(summary.workMinutes/60) %>h <%= summary.workMinutes%60 %>m</div>
+            <div>Gesamtzeit</div><div class="font-semibold"><%= Math.floor(summary.workMinutes/60) %>h <%= summary.workMinutes%60 %>m</div>
           </div>
           <div class="flex items-center justify-between">
             <div>Pausenzeit</div><div class="font-semibold"><%= Math.floor(summary.breakMinutes/60) %>h <%= summary.breakMinutes%60 %>m</div>
@@ -61,7 +61,7 @@
             <div>Anzahl Pausen</div><div class="font-semibold"><%= summary.pausesCount %></div>
           </div>
           <div class="flex items-center justify-between">
-            <div>Gesamtzeit</div><div class="font-semibold"><%= Math.floor(summary.netMinutes/60) %>h <%= summary.netMinutes%60 %>m</div>
+            <div>Arbeitszeit</div><div class="font-semibold"><%= Math.floor(summary.netMinutes/60) %>h <%= summary.netMinutes%60 %>m</div>
           </div>
         </div>
       </div>
