@@ -300,49 +300,108 @@ app.get('/admin', requireAuth, requireAdmin, async (req, res) => {
 // Admin export XLSX
 app.get('/admin/export', requireAuth, requireAdmin, async (req, res) => {
   const { from, to } = req.query;
+
+  // Alle Einträge im Zeitraum holen (inkl. employee & Checktimes)
   const { rows } = await pool.query(
-    `SELECT te.id, te.date, e.name as employee, te.check_in, te.check_out
+    `SELECT te.id, te.date, te.check_in, te.check_out, e.name AS employee
        FROM time_entries te
-       JOIN employees e ON e.id=te.employee_id
+       JOIN employees e ON e.id = te.employee_id
       WHERE te.date BETWEEN $1 AND $2
       ORDER BY te.date ASC, e.name ASC;`,
     [from, to]
   );
 
+  // Helfer
+  const toHours = m => (m / 60).toFixed(1);
+
+  // Für jeden Tages-Eintrag: Regel prüfen & ggf. fehlende Pause automatisch ergänzen
+  for (const r of rows) {
+    if (!r.check_in || !r.check_out) continue; // unvollständiger Tag -> überspringen
+
+    const grossMinutes = Math.max(0, dayjs(r.check_out).diff(dayjs(r.check_in), 'minute'));
+    if (grossMinutes < 360) continue; // < 6h => keine Pflichtpause
+
+    // Aktuelle Pausen aufsummieren
+    const { rows: br } = await pool.query(
+      `SELECT start, "end" FROM breaks WHERE entry_id = $1 ORDER BY id ASC;`,
+      [r.id]
+    );
+
+    let breakMinutes = 0;
+    for (const b of br) {
+      if (b.start && b.end) breakMinutes += dayjs(b.end).diff(dayjs(b.start), 'minute');
+    }
+
+    // Falls noch laufende (offene) Pause existiert, sicherheitshalber beenden
+    const last = br[br.length - 1];
+    if (last && last.start && !last.end) {
+      await pool.query(`UPDATE breaks SET "end" = $1 WHERE entry_id = $2 AND "end" IS NULL;`, [r.check_out, r.id]);
+      // neu summieren
+      const { rows: br2 } = await pool.query(
+        `SELECT start, "end" FROM breaks WHERE entry_id = $1 ORDER BY id ASC;`,
+        [r.id]
+      );
+      breakMinutes = 0;
+      for (const b of br2) {
+        if (b.start && b.end) breakMinutes += dayjs(b.end).diff(dayjs(b.start), 'minute');
+      }
+    }
+
+    // Defizit ermitteln und ggf. Pause ergänzen (direkt vor Check-out)
+    const deficit = Math.max(0, 30 - breakMinutes); // in Minuten
+    if (deficit > 0) {
+      const start = dayjs(r.check_out).subtract(deficit, 'minute').toISOString();
+      const end   = dayjs(r.check_out).toISOString();
+      await pool.query(
+        `INSERT INTO breaks (entry_id, start, "end") VALUES ($1, $2, $3);`,
+        [r.id, start, end]
+      );
+    }
+  }
+
+  // Nach evtl. Ergänzungen: Daten für den Export erneut laden (aktuelle Summen)
+  const { rows: rowsForExport } = await pool.query(
+    `SELECT te.id, te.date, te.check_in, te.check_out, e.name AS employee
+       FROM time_entries te
+       JOIN employees e ON e.id = te.employee_id
+      WHERE te.date BETWEEN $1 AND $2
+      ORDER BY te.date ASC, e.name ASC;`,
+    [from, to]
+  );
+
+  // Excel erstellen (JETZT in Stunden)
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet('Zeiten');
   ws.columns = [
-    { header: 'Datum', key: 'date', width: 12 },
-    { header: 'Mitarbeiter', key: 'employee', width: 20 },
-    { header: 'Check-In', key: 'check_in', width: 22 },
-    { header: 'Check-Out', key: 'check_out', width: 22 },
-    { header: 'Arbeitszeit (Std)', key: 'work', width: 18 },
-    { header: 'Pausen (Std)', key: 'breaks', width: 16 },
-    { header: 'Netto (Std)', key: 'net', width: 14 }
+    { header: 'Datum',             key: 'date',     width: 12 },
+    { header: 'Mitarbeiter',       key: 'employee', width: 20 },
+    { header: 'Check-In',          key: 'check_in', width: 12 },
+    { header: 'Check-Out',         key: 'check_out',width: 12 },
+    { header: 'Arbeitszeit (Std)', key: 'work',     width: 18 },
+    { header: 'Pausen (Std)',      key: 'breaks',   width: 16 },
+    { header: 'Netto (Std)',       key: 'net',      width: 14 }
   ];
 
-  for (const r of rows) {
+  for (const r of rowsForExport) {
+    // Zusammenfassung NACH eventuell eingefügter Pause berechnen
     const s = await computeSummary(r.id);
-
-    // Minuten in Stunden umrechnen (eine Nachkommastelle)
-    const toHours = m => (m / 60).toFixed(1);
-
     ws.addRow({
       date: dayjs(r.date).format('YYYY-MM-DD'),
       employee: r.employee,
       check_in: r.check_in ? dayjs(r.check_in).format('HH:mm:ss') : '',
       check_out: r.check_out ? dayjs(r.check_out).format('HH:mm:ss') : '',
-      work: toHours(s.workMinutes),
+      work:   toHours(s.workMinutes),
       breaks: toHours(s.breakMinutes),
-      net: toHours(s.netMinutes)
+      net:    toHours(s.netMinutes)
     });
   }
 
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="export_${from}_${to}.xlsx"`);
   await workbook.xlsx.write(res);
   res.end();
 });
+
 
 // --- Start ---
 app.listen(PORT, () => {
