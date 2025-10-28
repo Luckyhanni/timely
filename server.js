@@ -316,21 +316,25 @@ app.get('/admin/export', requireAuth, requireAdmin, async (req, res) => {
     { header: 'Mitarbeiter', key: 'employee', width: 20 },
     { header: 'Check-In', key: 'check_in', width: 22 },
     { header: 'Check-Out', key: 'check_out', width: 22 },
-    { header: 'Arbeitszeit (Min)', key: 'work', width: 18 },
-    { header: 'Pausen (Min)', key: 'breaks', width: 16 },
-    { header: 'Netto (Min)', key: 'net', width: 14 }
+    { header: 'Arbeitszeit (Std)', key: 'work', width: 18 },
+    { header: 'Pausen (Std)', key: 'breaks', width: 16 },
+    { header: 'Netto (Std)', key: 'net', width: 14 }
   ];
 
   for (const r of rows) {
     const s = await computeSummary(r.id);
+
+    // Minuten in Stunden umrechnen (eine Nachkommastelle)
+    const toHours = m => (m / 60).toFixed(1);
+
     ws.addRow({
       date: dayjs(r.date).format('YYYY-MM-DD'),
       employee: r.employee,
-      check_in: r.check_in ? dayjs(r.check_in).toISOString() : '',
-      check_out: r.check_out ? dayjs(r.check_out).toISOString() : '',
-      work: s.workMinutes,
-      breaks: s.breakMinutes,
-      net: s.netMinutes
+      check_in: r.check_in ? dayjs(r.check_in).format('HH:mm:ss') : '',
+      check_out: r.check_out ? dayjs(r.check_out).format('HH:mm:ss') : '',
+      work: toHours(s.workMinutes),
+      breaks: toHours(s.breakMinutes),
+      net: toHours(s.netMinutes)
     });
   }
 
