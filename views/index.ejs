@@ -1,0 +1,70 @@
+<% layout('layout',{user}) %>
+<div class="max-w-6xl mx-auto">
+  <div class="flex items-center justify-between">
+    <h1 class="text-3xl font-bold">Willkommen zurück, <%= user.name %>! 👋</h1>
+    <div class="text-slate-400"><%= now.format('dddd, DD. MMMM YYYY') %></div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-6 mt-6">
+    <div class="md:col-span-2">
+      <div class="card p-6">
+        <div class="text-sm text-white/60 mb-2">Aktuelle Uhrzeit</div>
+        <div class="text-5xl font-extrabold tracking-wide" id="clock-time"><%= now.format('HH:mm:ss') %></div>
+        <div class="mt-1 text-white/70" id="clock-date"><%= now.format('dddd, DD. MMMM YYYY') %></div>
+      </div>
+      <div class="mt-6 card p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-lg font-semibold">Status</div>
+          <span class="text-xs bg-white/10 px-2 py-1 rounded">
+            <% if (!checkedIn) { %>Nicht eingecheckt<% } else if (checkedOut) { %>Ausgecheckt<% } else if (onBreak) { %>In Pause<% } else { %>Eingecheckt<% } %>
+          </span>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <% if (!checkedIn) { %>
+            <form method="post" action="/action/checkin"><button class="btn-vintage rounded px-4 py-2 w-full sm:w-auto">Einchecken</button></form>
+          <% } %>
+          <% if (checkedIn && !checkedOut && !onBreak) { %>
+            <form method="post" action="/action/break/start"><button class="btn-rose rounded px-4 py-2 w-full sm:w-auto">Pause starten</button></form>
+          <% } %>
+          <% if (checkedIn && !checkedOut && onBreak) { %>
+            <form method="post" action="/action/break/end"><button class="btn-rose rounded px-4 py-2 w-full sm:w-auto">Pause beenden</button></form>
+          <% } %>
+          <% if (checkedIn && !checkedOut) { %>
+            <form method="post" action="/action/checkout"><button class="rounded px-4 py-2 bg-white/10 hover:bg-white/15 w-full sm:w-auto">Auschecken</button></form>
+          <% } %>
+          <% if (checkedOut) { %>
+            <div class="text-slate-400">Du hast heute bereits ausgecheckt!</div>
+          <% } %>
+        </div>
+      </div>
+      <div class="mt-6 card p-6">
+        <div class="text-lg font-semibold mb-3">Pausen heute</div>
+        <% if (summary.pausesCount===0) { %>
+          <div class="text-slate-400">Noch keine Pausen erfasst.</div>
+        <% } else { %>
+          <ol class="space-y-2 text-sm">
+            <li>Anzahl Pausen: <strong><%= summary.pausesCount %></strong></li>
+          </ol>
+        <% } %>
+      </div>
+    </div>
+    <aside class="space-y-4">
+      <div class="card p-4">
+        <div class="text-lg font-semibold mb-3">Zusammenfassung</div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <div>Arbeitszeit</div><div class="font-semibold"><%= Math.floor(summary.workMinutes/60) %>h <%= summary.workMinutes%60 %>m</div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>Pausenzeit</div><div class="font-semibold"><%= Math.floor(summary.breakMinutes/60) %>h <%= summary.breakMinutes%60 %>m</div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>Anzahl Pausen</div><div class="font-semibold"><%= summary.pausesCount %></div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>Gesamtzeit</div><div class="font-semibold"><%= Math.floor(summary.netMinutes/60) %>h <%= summary.netMinutes%60 %>m</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>

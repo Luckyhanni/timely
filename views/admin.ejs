@@ -1,0 +1,137 @@
+<% layout('layout', { user }) %>
+
+<h1 class="text-2xl font-bold mb-6">Admin</h1>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <!-- Mitarbeiter -->
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold">Mitarbeiter</h2>
+      <form method="post" action="/admin/employees/add" class="hidden sm:flex gap-2">
+        <input class="bg-transparent border border-white/15 rounded px-2 py-1 text-white placeholder-white/40"
+               name="name" placeholder="Name" required/>
+        <input class="bg-transparent border border-white/15 rounded px-2 py-1 text-white placeholder-white/40"
+               name="pin" placeholder="PIN" minlength="4" maxlength="6" required/>
+        <label class="text-sm flex items-center gap-1 select-none">
+          <input type="checkbox" name="is_admin" class="accent-[#c5a268]"> Admin
+        </label>
+        <button class="btn-vintage rounded px-3 py-1 w-full sm:w-auto">Hinzufügen</button>
+      </form>
+    </div>
+
+    <!-- Mobile Add-Form -->
+    <form method="post" action="/admin/employees/add" class="sm:hidden space-y-2 mb-4">
+      <input class="w-full bg-transparent border border-white/15 rounded px-3 py-2 text-white placeholder-white/40"
+             name="name" placeholder="Name" required/>
+      <div class="flex gap-2">
+        <input class="flex-1 bg-transparent border border-white/15 rounded px-3 py-2 text-white placeholder-white/40"
+               name="pin" placeholder="PIN" minlength="4" maxlength="6" required/>
+        <label class="text-sm flex items-center gap-2 px-2">
+          <input type="checkbox" name="is_admin" class="accent-[#c5a268]"> Admin
+        </label>
+      </div>
+      <button class="btn-vintage w-full rounded px-3 py-2 w-full sm:w-auto">Hinzufügen</button>
+    </form>
+
+    <div class="overflow-x-auto -mx-4 sm:mx-0">
+      <table class="min-w-[640px] text-sm">
+        <thead>
+          <tr class="table-head text-left">
+            <th class="px-4 py-2">Name</th>
+            <th class="px-4 py-2">Rolle</th>
+            <th class="px-4 py-2 w-52">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% employees.forEach(e => { %>
+          <tr class="table-row">
+            <td class="px-4 py-2"><%= e.name %></td>
+            <td class="px-4 py-2">
+              <% if (e.is_admin) { %>
+                <span class="inline-flex items-center text-xs bg-white/10 rounded px-2 py-1">Admin</span>
+              <% } else { %>
+                <span class="inline-flex items-center text-xs bg-white/10 rounded px-2 py-1">Mitarbeiter</span>
+              <% } %>
+            </td>
+            <td class="px-4 py-2">
+              <div class="flex flex-wrap gap-2">
+                <button class="px-3 py-1 rounded btn-vintage w-full sm:w-auto"
+                        onclick='openEdit(<%- JSON.stringify({id:e.id,name:e.name,is_admin:e.is_admin}) %>)'>
+                  Bearbeiten
+                </button>
+                <form method="post" action="/admin/employees/delete"
+                      onsubmit="return confirm('Wirklich löschen?');">
+                  <input type="hidden" name="id" value="<%= e.id %>"/>
+                  <button class="px-3 py-1 rounded btn-rose w-full sm:w-auto">Löschen</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="card p-6">
+    <h2 class="font-semibold mb-3">Excel Export</h2>
+    <form method="get" action="/admin/export" class="flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block text-sm mb-1">Von</label>
+        <input type="date" name="from" class="bg-transparent border border-white/15 rounded px-2 py-1 text-white" required/>
+      </div>
+      <div>
+        <label class="block text-sm mb-1">Bis</label>
+        <input type="date" name="to" class="bg-transparent border border-white/15 rounded px-2 py-1 text-white" required/>
+      </div>
+      <button class="btn-vintage rounded px-4 py-2 w-full sm:w-auto">Exportieren</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="editModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 z-50">
+  <div class="card p-6 w-[420px]">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold">Mitarbeiter bearbeiten</h3>
+      <button onclick="closeEdit()" class="text-slate-400 hover:text-slate-200 w-full sm:w-auto">✕</button>
+    </div>
+    <form id="editForm" method="post" action="/admin/employees/update" class="space-y-3">
+      <input type="hidden" name="id" id="edit-id"/>
+      <div>
+        <label class="text-sm block mb-1">Name</label>
+        <input class="w-full bg-transparent border border-white/15 rounded px-3 py-2 text-white"
+               name="name" id="edit-name" required/>
+      </div>
+      <div>
+        <label class="text-sm block mb-1">Neue PIN (4–6 Stellen)</label>
+        <input class="w-full bg-transparent border border-white/15 rounded px-3 py-2 text-white"
+               name="pin" id="edit-pin" minlength="4" maxlength="6" placeholder="z.B. 1234" required/>
+        <p class="text-xs text-white/50 mt-1">Die alte PIN wird überschrieben.</p>
+      </div>
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_admin" id="edit-is-admin" class="accent-[#c5a268]"/> Admin-Rechte
+      </label>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeEdit()" class="px-4 py-2 rounded bg-white/10 hover:bg-white/15 w-full sm:w-auto">Abbrechen</button>
+        <button class="px-4 py-2 rounded btn-vintage w-full sm:w-auto">Speichern</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openEdit(data){
+    document.getElementById('edit-id').value = data.id;
+    document.getElementById('edit-name').value = data.name;
+    document.getElementById('edit-pin').value = '';
+    document.getElementById('edit-is-admin').checked = !!data.is_admin;
+    const m = document.getElementById('editModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function closeEdit(){
+    const m = document.getElementById('editModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+  }
+</script>

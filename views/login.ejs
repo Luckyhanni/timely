@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Timely – Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Raleway:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body{ background:#111216; color:#f7f5f0; font-family:'Raleway',sans-serif }
+    .card{ background:#1b1d23; border-radius:1.25rem; box-shadow:0 20px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04); }
+    .btn{ background:linear-gradient(180deg,#c5a268,#b48c4d); color:#1b1d23; }
+    .btn:hover{ filter:brightness(1.05) }
+  </style>
+</head>
+<body class="min-h-screen grid place-items-center">
+  <div class="w-[380px] card p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <img src="/img/logo.png" class="h-12 w-auto" alt="Logo">
+      <div>
+        <div class="text-2xl font-semibold" style="font-family:'Playfair Display',serif">Timely</div>
+        <div class="text-xs text-white/60 -mt-0.5">Metzgerei Blank</div>
+      </div>
+    </div>
+
+    <h1 class="text-lg font-semibold mb-3">Anmelden</h1>
+    <form method="post" action="/login" class="space-y-3">
+      <div>
+        <label class="block text-sm mb-1">Mitarbeiter</label>
+        <select name="employee_id" class="w-full bg-transparent border border-white/15 rounded px-3 py-2">
+          <% employees.forEach(e => { %>
+            <option value="<%= e.id %>"><%= e.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm mb-1">PIN (4-stellig)</label>
+        <input name="pin" type="password" minlength="4" maxlength="6" class="w-full bg-transparent border border-white/15 rounded px-3 py-2" required/>
+      </div>
+      <% if (error) { %><div class="text-red-400 text-sm"><%= error %></div><% } %>
+      <button class="btn w-full rounded py-2 mt-1">Login</button>
+    </form>
+  </div>
+</body>
+</html>

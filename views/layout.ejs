@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Timely</title>
+  <link rel="icon" href="/favicon.ico">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Raleway:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #111216;
+      --card: #1b1d23;
+      --ink: #f7f5f0;
+      --accent: #c5a268;
+      --accent-2: #7a1c1c;
+    }
+    body { font-family: 'Raleway', sans-serif; color: var(--ink); }
+    .vintage-bg {
+      background:
+        radial-gradient(ellipse at top, rgba(255,255,255,.02), transparent 50%),
+        radial-gradient(ellipse at bottom, rgba(255,255,255,.02), transparent 50%);
+      background-color: var(--bg);
+    }
+    .card { background-color: var(--card); border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03); }
+    .brand-title { font-family: 'Playfair Display', serif; letter-spacing: .5px }
+    .btn-vintage { background: linear-gradient(180deg,var(--accent),#b48c4d); color: #1b1d23; }
+    .btn-rose { background: linear-gradient(180deg,var(--accent-2),#5f1515); color: #fff; }
+    .table-head { background: rgba(255,255,255,.04); color: #e9e6df; }
+    .table-row { border-top: 1px solid rgba(255,255,255,.06); }
+  </style>
+</head>
+<body class="min-h-screen vintage-bg">
+  <!-- Topbar (nur mobil) -->
+  <header class="lg:hidden flex items-center justify-between px-4 py-3 border-b border-white/10">
+    <div class="flex items-center gap-3">
+      <img src="/img/logo.png" alt="Logo" class="h-8 w-auto select-none">
+      <div>
+        <div class="text-lg brand-title">Timely</div>
+        <div class="text-[11px] text-white/60 -mt-0.5">Zeit erfasst. Einfach.</div>
+      </div>
+    </div>
+    <button id="btnNav" class="rounded px-3 py-1 bg-white/10 hover:bg-white/15">Menü</button>
+  </header>
+
+  <!-- Off-canvas Sidebar (mobil), statisch (lg) -->
+  <div id="backdrop" class="fixed inset-0 bg-black/40 hidden lg:hidden"></div>
+  <aside id="sidebar"
+         class="fixed lg:static inset-y-0 left-0 z-40 w-72 min-h-screen border-r border-white/10
+                bg-[var(--bg)] transform -translate-x-full lg:translate-x-0 transition-transform duration-200">
+    <div class="hidden lg:flex p-6 items-center gap-3">
+      <img src="/img/logo.png" alt="Logo" class="h-12 w-auto select-none">
+      <div>
+        <div class="text-xl brand-title">Timely</div>
+        <div class="text-xs text-white/60 -mt-0.5">Zeit erfasst. Einfach.</div>
+      </div>
+    </div>
+
+    <nav class="px-4 space-y-1 mt-3 lg:mt-0">
+      <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/">Zeiterfassung</a>
+      <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/history">Meine Historie</a>
+      <% if (user && user.is_admin) { %>
+        <div class="mt-4 text-[10px] uppercase text-white/40 px-3 tracking-widest">Admin</div>
+        <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/admin">Export & Mitarbeiter</a>
+      <% } %>
+    </nav>
+
+    <div class="absolute bottom-4 left-4 right-4 text-white/70 hidden lg:block">
+      <% if (user) { %>
+        <div class="text-sm mb-2">Angemeldet: <strong><%= user.name %></strong></div>
+        <a class="inline-flex items-center gap-2 text-sm hover:underline" href="/logout">Abmelden</a>
+      <% } %>
+    </div>
+  </aside>
+
+  <!-- Inhalt -->
+  <main class="lg:ml-0 p-4 md:p-6 lg:p-8">
+    <!-- Mobile Userzeile (damit sie nicht in der Sidebar verschwindet) -->
+    <div class="lg:hidden text-white/70 text-sm mb-3">
+      <% if (user) { %>Angemeldet: <strong><%= user.name %></strong> – <a class="underline" href="/logout">Abmelden</a><% } %>
+    </div>
+    <%- body %>
+  </main>
+
+  <script>
+    // Sidebar Toggle (Mobil)
+    const btn = document.getElementById('btnNav');
+    const aside = document.getElementById('sidebar');
+    const backdrop = document.getElementById('backdrop');
+    const openNav = () => { aside.style.transform = 'translateX(0)'; backdrop.classList.remove('hidden'); };
+    const closeNav = () => { aside.style.transform = 'translateX(-100%)'; backdrop.classList.add('hidden'); };
+    if (btn) btn.addEventListener('click', () => {
+      const open = aside.style.transform === 'translateX(0px)';
+      open ? closeNav() : openNav();
+    });
+    if (backdrop) backdrop.addEventListener('click', closeNav);
+
+    // Live-Uhr + Auto-Refresh (wie bisher)
+    function updateClock(){
+      const t=new Date(), pad=n=>n.toString().padStart(2,'0');
+      const time=`${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+      const date=t.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+      const te=document.getElementById('clock-time'), de=document.getElementById('clock-date');
+      if(te) te.textContent=time; if(de) de.textContent=date.charAt(0).toUpperCase()+date.slice(1);
+    }
+    updateClock(); setInterval(updateClock,1000);
+    setInterval(()=>{ if(!document.hidden) location.reload(); },30000);
+  </script>
+</body>
+</html>

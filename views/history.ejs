@@ -1,0 +1,28 @@
+<% layout('layout',{user}) %>
+<h1 class="text-2xl font-bold mb-4">Meine Historie</h1>
+<div class="card overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead>
+      <tr class="table-head text-left">
+        <th class="px-4 py-2">Datum</th>
+        <th class="px-4 py-2">Check-In</th>
+        <th class="px-4 py-2">Check-Out</th>
+        <th class="px-4 py-2">Arbeitszeit</th>
+        <th class="px-4 py-2">Pausen</th>
+        <th class="px-4 py-2">Netto</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% data.forEach(r=>{ %>
+        <tr class="table-row">
+          <td class="px-4 py-2"><%= r.date %></td>
+          <td class="px-4 py-2"><%= r.check_in||'' %></td>
+          <td class="px-4 py-2"><%= r.check_out||'' %></td>
+          <td class="px-4 py-2"><%= Math.floor(r.workMinutes/60) %>h <%= r.workMinutes%60 %>m</td>
+          <td class="px-4 py-2"><%= r.breakMinutes %>m</td>
+          <td class="px-4 py-2"><%= Math.floor(r.netMinutes/60) %>h <%= r.netMinutes%60 %>m</td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
