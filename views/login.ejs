@@ -1,12 +1,6 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <select name="employeeId" id="employeeId" class="employee-select">
-  <% employees.forEach(e => { %>
-    <option value="<%= e.id %>"><%= e.name %></option>
-  <% }) %>
-</select>
-
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Timely – Login</title>
@@ -33,11 +27,13 @@
     <form method="post" action="/login" class="space-y-3">
       <div>
         <label class="block text-sm mb-1">Mitarbeiter</label>
-        <select name="employee_id" class="w-full bg-transparent border border-white/15 rounded px-3 py-2">
-          <% employees.forEach(e => { %>
-            <option value="<%= e.id %>"><%= e.name %></option>
-          <% }) %>
-        </select>
+        <select name="employee_id"
+        class="employee-select w-full bg-transparent border border-white/15 rounded px-3 py-2">
+  <% employees.forEach(e => { %>
+    <option value="<%= e.id %>"><%= e.name %></option>
+  <% }) %>
+</select>
+
       </div>
       <div>
         <label class="block text-sm mb-1">PIN (4-stellig)</label>
