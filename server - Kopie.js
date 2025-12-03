@@ -58,7 +58,6 @@ async function ensureSchema() {
     );
   }
 }
-// Wir warten auf die DB Initialisierung beim Start
 await ensureSchema();
 
 // --- Middleware ---
@@ -147,13 +146,6 @@ async function computeSummary(entryId) {
 }
 
 // --- Routes ---
-
-// NEU: Health Check Endpoint für Uptime Robot
-// Dieser Endpoint macht KEINE Datenbankabfrage und hält nur den Node-Server wach.
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
 app.get('/login', async (req, res) => {
   const { rows: employees } = await pool.query(
     `SELECT id, name FROM employees ORDER BY name;`
