@@ -1,1 +1,11 @@
-"node_modules/" 
+node_modules/
+.idea/
+.env
+.env.*
+!.env.example
+dist/
+*.db
+*.db-shm
+*.db-wal
+logs.txt
+timely_backup.sql

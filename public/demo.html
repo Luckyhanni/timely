@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="theme-color" content="#111216"/>
+  <title>Timely Demo</title>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="stylesheet" href="/css/timely.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Raleway:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #111216;
+      --card: #1b1d23;
+      --ink: #f7f5f0;
+      --accent: #c5a268;
+      --accent-2: #7a1c1c;
+    }
+    body { font-family: 'Raleway', sans-serif; color: var(--ink); background: var(--bg); }
+    .brand-title { font-family: 'Playfair Display', serif; letter-spacing: .5px; }
+    .demo-card { background-color: var(--card); border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03); }
+    .btn-vintage { background: linear-gradient(180deg,var(--accent),#b48c4d); color: #1b1d23; }
+    .btn-rose { background: linear-gradient(180deg,var(--accent-2),#5f1515); color: #fff; }
+    .table-head { background: rgba(255,255,255,.04); color: #e9e6df; }
+    .table-row { border-top: 1px solid rgba(255,255,255,.06); }
+    .nav-active { background: rgba(255,255,255,.1); color: #fff; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="lg:flex min-h-screen">
+    <aside class="lg:w-72 lg:min-h-screen border-b lg:border-b-0 lg:border-r border-white/10">
+      <div class="p-5 lg:p-6 flex items-center gap-3">
+        <img src="/img/logo.png" alt="Logo" class="h-10 lg:h-12 w-auto select-none">
+        <div>
+          <div class="text-xl brand-title">Timely</div>
+          <div class="text-xs text-white/60 -mt-0.5">Zeit erfasst. Einfach.</div>
+        </div>
+      </div>
+      <div class="mx-5 lg:mx-4 mb-4 rounded border border-white/10 bg-white/[.04] px-3 py-2 text-xs text-white/70">
+        Demo-Version – Beispieldaten werden nur lokal im Browser gespeichert.
+      </div>
+      <nav class="px-4 pb-5 space-y-1 flex lg:block gap-2 overflow-x-auto">
+        <button class="nav-link block px-3 py-2 rounded text-white/70 whitespace-nowrap" data-view="tracker">Zeiterfassung</button>
+        <button class="nav-link block px-3 py-2 rounded text-white/70 whitespace-nowrap" data-view="history">Historie</button>
+        <button class="nav-link block px-3 py-2 rounded text-white/70 whitespace-nowrap" data-view="admin">Demo-Verwaltung</button>
+      </nav>
+      <div class="hidden lg:block absolute bottom-4 left-4 right-4 text-white/70">
+        <div class="text-sm mb-3">Demo-Nutzer: <strong id="sidebarUser">Demo Admin</strong></div>
+        <button id="resetDemoSide" class="text-sm underline text-white/70 hover:text-white">Demo zurücksetzen</button>
+      </div>
+    </aside>
+
+    <main class="flex-1 p-4 md:p-6 lg:p-8">
+      <div class="max-w-6xl mx-auto">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+          <div>
+            <h1 id="pageTitle" class="text-3xl font-bold">Zeiterfassung</h1>
+            <p class="text-white/60 text-sm mt-1">Öffentliche Demo ohne Login, Datenbank oder echte Personendaten.</p>
+          </div>
+          <div class="flex flex-wrap gap-2 items-center">
+            <select id="employeeSelect" class="employee-select bg-transparent border border-white/15 rounded px-3 py-2"></select>
+            <button id="resetDemo" class="rounded px-3 py-2 bg-white/10 hover:bg-white/15">Demo zurücksetzen</button>
+          </div>
+        </div>
+
+        <section id="trackerView" class="view grid md:grid-cols-3 gap-6">
+          <div class="md:col-span-2 space-y-6">
+            <div class="demo-card p-6">
+              <div class="text-sm text-white/60 mb-2">Aktuelle Uhrzeit</div>
+              <div class="text-5xl font-extrabold tracking-wide" id="clockTime"></div>
+              <div class="mt-1 text-white/70" id="clockDate"></div>
+            </div>
+            <div class="demo-card p-6">
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-lg font-semibold">Status</div>
+                <span id="statusBadge" class="text-xs bg-white/10 px-2 py-1 rounded"></span>
+              </div>
+              <div id="actionButtons" class="flex flex-col sm:flex-row gap-2 sm:gap-3"></div>
+            </div>
+            <div class="demo-card p-6">
+              <div class="text-lg font-semibold mb-3">Pausen heute</div>
+              <div id="breaksToday" class="text-sm text-white/70"></div>
+            </div>
+          </div>
+          <aside class="space-y-4">
+            <div class="demo-card p-4">
+              <div class="text-lg font-semibold mb-3">Zusammenfassung</div>
+              <div id="summaryBox" class="space-y-2"></div>
+            </div>
+          </aside>
+        </section>
+
+        <section id="historyView" class="view hidden">
+          <div class="demo-card overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="table-head text-left">
+                  <th class="px-4 py-2">Datum</th>
+                  <th class="px-4 py-2">Check-In</th>
+                  <th class="px-4 py-2">Check-Out</th>
+                  <th class="px-4 py-2">Arbeitszeit</th>
+                  <th class="px-4 py-2">Pausen</th>
+                  <th class="px-4 py-2">Netto</th>
+                </tr>
+              </thead>
+              <tbody id="historyRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="adminView" class="view hidden grid lg:grid-cols-2 gap-6">
+          <div class="demo-card p-6">
+            <h2 class="font-semibold mb-4">Beispiel-Mitarbeiter</h2>
+            <form id="addEmployeeForm" class="flex flex-wrap gap-2 mb-4">
+              <input id="newEmployeeName" class="bg-transparent border border-white/15 rounded px-3 py-2 text-white placeholder-white/40" placeholder="Name" required>
+              <label class="text-sm flex items-center gap-2 select-none px-2">
+                <input id="newEmployeeAdmin" type="checkbox" class="accent-[#c5a268]"> Admin
+              </label>
+              <button class="btn-vintage rounded px-4 py-2">Hinzufügen</button>
+            </form>
+            <div id="employeeRows" class="space-y-2"></div>
+          </div>
+          <div class="demo-card p-6">
+            <h2 class="font-semibold mb-3">Excel Export</h2>
+            <p class="text-white/60 text-sm mb-4">In der öffentlichen Demo deaktiviert.</p>
+            <button disabled class="rounded px-4 py-2 bg-white/10 text-white/40 cursor-not-allowed">Exportieren</button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="/js/demo.js"></script>
+</body>
+</html>

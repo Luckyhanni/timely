@@ -1,31 +1,37 @@
-# TimeTracker (Node + SQLite)
-**Kostenlos, self‑hosted, mobil erreichbar.**
+# Timely
+
+Timely ist eine kleine Express/EJS-App zur Zeiterfassung. Der produktive Serverbetrieb nutzt PostgreSQL über `DATABASE_URL`.
 
 ## Setup
-1. Node.js LTS installieren.
-2. Im Ordner: `npm install`
-3. Start: `npm start` → http://localhost:3000
-4. Default‑Nutzer: **Johannes / 1430 (Admin)**, **Sophie / 1111**.
+1. Node.js 20 installieren.
+2. Im Ordner `npm install` ausführen.
+3. Für den produktiven Serverbetrieb `DATABASE_URL` und optional `SESSION_SECRET` setzen.
+4. Start: `npm start` -> http://localhost:3000
 
-## Zugriff von überall (ohne Port‑Forwarding)
-**Cloudflare Tunnel (kostenlos)**:
-- Cloudflare‑Account erstellen, eine Domain hinzufügen (auch kostenlose Subdomain via `cfpage`/`trycloudflare` möglich).
-- Auf Windows: Cloudflare `cloudflared` installieren.
-- Tunnel erstellen: `cloudflared tunnel login` → `cloudflared tunnel create timetracker` → `cloudflared tunnel route dns timetracker tracker.deinname.de`
-- Konfig in `%USERPROFILE%\.cloudflared\config.yml`:
-  ```yml
-  tunnel: timetracker
-  credentials-file: C:\Users\<USER>\.cloudflared\<id>.json
-  ingress:
-    - hostname: tracker.deinname.de
-      service: http://localhost:3000
-    - service: http_status:404
-  ```
-- Start: `cloudflared tunnel run timetracker`
+Ohne `DATABASE_URL` startet Timely automatisch im öffentlichen Demo-Modus und leitet auf die statische Demo weiter.
 
-## Backups
-- SQLite Datei `timetracker.db` regelmäßig sichern (z. B. täglicher Windows Task, Kopie in OneDrive).
+## Demo-Version
+Die öffentliche Demo läuft ohne Login, ohne Datenbank und ohne echte Nutzerdaten.
+
+Lokal starten:
+
+```bash
+npm install
+npm run build
+npm run preview
+```
+
+Danach ist die Demo unter http://localhost:3000/demo.html erreichbar. Alternativ kann der Ordner `dist/` nach `npm run build` auf statischem Hosting wie Netlify, Vercel Static Output oder GitHub Pages veröffentlicht werden.
+
+Die Demo verwendet neutrale Beispiel-Mitarbeiter und Beispiel-Zeiteinträge. Änderungen werden ausschließlich per `localStorage` im Browser gespeichert. Es sind keine echten Namen, Arbeitszeiten, PINs oder privaten Daten enthalten.
+
+Demo zurücksetzen:
+
+- In der App den Button `Demo zurücksetzen` verwenden.
+- Oder im Browser den `localStorage`-Eintrag `timely-public-demo-v1` löschen.
+
+In der öffentlichen Demo ist der echte Excel-Export deaktiviert und entsprechend gekennzeichnet.
 
 ## Hinweise
-- Dieses MVP speichert PINs **im Klartext** (für kleinen internen Einsatz ok). Für produktiv: PINs hashen (bcrypt) und HTTPS erzwingen.
-- Optional: Roles/Abteilungen, verpflichtende Pausen, Rundungsregeln etc. sind einfach nachrüstbar.
+- PINs im produktiven Serverbetrieb sind aktuell einfache Textwerte. Vor produktiver Nutzung sollten PINs gehasht und Zugriff/Transport abgesichert werden.
+- Lokale Datenbankdateien, Logs und `.env`-Dateien sind von der Veröffentlichung ausgeschlossen.

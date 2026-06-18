@@ -16,12 +16,15 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DEMO_MODE = process.env.TIMELY_DEMO === 'true' || !process.env.DATABASE_URL;
 
 // --- DB: Postgres Pool ---
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('sslmode=disable') ? false : { rejectUnauthorized: false }
-});
+const pool = DEMO_MODE
+  ? null
+  : new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL?.includes('sslmode=disable') ? false : { rejectUnauthorized: false }
+    });
 
 // Ensure schema & seed
 async function ensureSchema() {
@@ -54,12 +57,14 @@ async function ensureSchema() {
     await pool.query(
       `INSERT INTO employees (name, pin, is_admin) VALUES
        ($1,$2,$3),($4,$5,$6) ON CONFLICT DO NOTHING;`,
-      ['Johannes', '1430', true, 'Sophie', '1111', false]
+      ['Demo Admin', '1234', true, 'Demo Mitarbeiter', '1111', false]
     );
   }
 }
 // Wir warten auf die DB Initialisierung beim Start
-await ensureSchema();
+if (!DEMO_MODE) {
+  await ensureSchema();
+}
 
 // --- Middleware ---
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -76,6 +81,14 @@ app.use(session({
   saveUninitialized: false,
   cookie: { maxAge: 1000*60*60*12 } // 12h
 }));
+
+if (DEMO_MODE) {
+  app.use((req, res, next) => {
+    if (req.path === '/health') return next();
+    if (req.method === 'GET' || req.method === 'POST') return res.redirect('/demo.html');
+    return next();
+  });
+}
 
 function requireAuth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
