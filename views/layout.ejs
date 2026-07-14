@@ -58,9 +58,10 @@ option:hover, option:checked { background:#2c2c2c; color:#fff; }
   </header>
 
   <!-- Off-canvas Sidebar (mobil), statisch (lg) -->
-  <div id="backdrop" class="fixed inset-0 bg-black/40 hidden lg:hidden"></div>
+  <div id="backdrop" class="fixed inset-0 bg-black/40 hidden lg:hidden z-30"></div>
+  <div class="lg:flex lg:min-h-screen">
   <aside id="sidebar"
-         class="fixed lg:static inset-y-0 left-0 z-40 w-72 min-h-screen border-r border-white/10
+         class="fixed lg:relative inset-y-0 left-0 z-40 w-72 shrink-0 min-h-screen overflow-y-auto border-r border-white/10
                 bg-[var(--bg)] transform -translate-x-full lg:translate-x-0 transition-transform duration-200">
     <div class="hidden lg:flex p-6 items-center gap-3">
       <img src="/img/logo.png" alt="Logo" class="h-12 w-auto select-none">
@@ -88,23 +89,24 @@ option:hover, option:checked { background:#2c2c2c; color:#fff; }
   </aside>
 
   <!-- Inhalt -->
-  <main class="lg:ml-0 p-4 md:p-6 lg:p-8">
+  <main class="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
     <!-- Mobile Userzeile (damit sie nicht in der Sidebar verschwindet) -->
     <div class="lg:hidden text-white/70 text-sm mb-3">
       <% if (user) { %>Angemeldet: <strong><%= user.name %></strong> – <a class="underline" href="/logout">Abmelden</a><% } %>
     </div>
     <%- body %>
   </main>
+  </div>
 
   <script>
     // Sidebar Toggle (Mobil)
     const btn = document.getElementById('btnNav');
     const aside = document.getElementById('sidebar');
     const backdrop = document.getElementById('backdrop');
-    const openNav = () => { aside.style.transform = 'translateX(0)'; backdrop.classList.remove('hidden'); };
-    const closeNav = () => { aside.style.transform = 'translateX(-100%)'; backdrop.classList.add('hidden'); };
+    const openNav = () => { aside.classList.remove('-translate-x-full'); backdrop.classList.remove('hidden'); };
+    const closeNav = () => { aside.classList.add('-translate-x-full'); backdrop.classList.add('hidden'); };
     if (btn) btn.addEventListener('click', () => {
-      const open = aside.style.transform === 'translateX(0px)';
+      const open = !aside.classList.contains('-translate-x-full');
       open ? closeNav() : openNav();
     });
     if (backdrop) backdrop.addEventListener('click', closeNav);

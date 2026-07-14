@@ -1,14 +1,14 @@
 <% layout('layout',{user}) %>
 <div class="max-w-6xl mx-auto">
-  <div class="flex items-center justify-between">
-    <h1 class="text-3xl font-bold">Willkommen zurück, <%= user.name %>! 👋</h1>
-    <div class="text-slate-400"><%= now.format('dddd, DD. MMMM YYYY') %></div>
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+    <h1 class="text-2xl md:text-3xl font-bold">Willkommen zurück, <%= user.name %>! 👋</h1>
+    <div class="text-slate-400 hidden sm:block"><%= now.format('dddd, DD. MMMM YYYY') %></div>
   </div>
   <div class="grid md:grid-cols-3 gap-6 mt-6">
     <div class="md:col-span-2">
       <div class="card p-6">
         <div class="text-sm text-white/60 mb-2">Aktuelle Uhrzeit</div>
-        <div class="text-5xl font-extrabold tracking-wide" id="clock-time"><%= now.format('HH:mm:ss') %></div>
+        <div class="text-4xl sm:text-5xl font-extrabold tracking-wide" id="clock-time"><%= now.format('HH:mm:ss') %></div>
         <div class="mt-1 text-white/70" id="clock-date"><%= now.format('dddd, DD. MMMM YYYY') %></div>
       </div>
       <div class="mt-6 card p-6">
