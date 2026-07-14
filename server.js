@@ -9,7 +9,14 @@ import helmet from 'helmet';
 import { Pool } from 'pg';
 import ExcelJS from 'exceljs';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
 import ejsMate from 'ejs-mate';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+// Alle Anzeige-Zeiten in deutscher Zeit, unabhängig von der Server-Zeitzone (Render läuft auf UTC)
+const TZ = 'Europe/Berlin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -100,7 +107,7 @@ function requireAdmin(req, res, next) {
 }
 
 // --- Helpers ---
-function todayStr() { return dayjs().format('YYYY-MM-DD'); }
+function todayStr() { return dayjs().tz(TZ).format('YYYY-MM-DD'); }
 function nowISO() { return dayjs().toISOString(); }
 
 // get or create today's entry
@@ -193,7 +200,7 @@ app.get('/logout', (req, res) => {
 app.get('/', requireAuth, async (req, res) => {
   const entry = await getOrCreateTodayEntry(req.session.user.id);
   const summary = await computeSummary(entry.id);
-  const now = dayjs();
+  const now = dayjs().tz(TZ);
   const breaksToday = await getBreaks(entry.id);
   const checkedIn = !!entry.check_in;
   const checkedOut = !!entry.check_out;
@@ -269,8 +276,8 @@ app.get('/history', requireAuth, async (req, res) => {
     data.push({
       id: r.id,
       date: dayjs(r.date).format('YYYY-MM-DD'),
-      check_in: r.check_in ? dayjs(r.check_in).toISOString() : null,
-      check_out: r.check_out ? dayjs(r.check_out).toISOString() : null,
+      check_in: r.check_in ? dayjs(r.check_in).tz(TZ).format('HH:mm') : null,
+      check_out: r.check_out ? dayjs(r.check_out).tz(TZ).format('HH:mm') : null,
       ...s
     });
   }
@@ -409,8 +416,8 @@ app.get('/admin/export', requireAuth, requireAdmin, async (req, res) => {
     ws.addRow({
       date: dayjs(r.date).format('YYYY-MM-DD'),
       employee: r.employee,
-      check_in: r.check_in ? dayjs(r.check_in).format('HH:mm:ss') : '',
-      check_out: r.check_out ? dayjs(r.check_out).format('HH:mm:ss') : '',
+      check_in: r.check_in ? dayjs(r.check_in).tz(TZ).format('HH:mm:ss') : '',
+      check_out: r.check_out ? dayjs(r.check_out).tz(TZ).format('HH:mm:ss') : '',
       work:   toHours(s.workMinutes),
       breaks: toHours(s.breakMinutes),
       net:    toHours(s.netMinutes)
