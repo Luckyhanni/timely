@@ -23,26 +23,34 @@
       </div>
     </div>
 
-    <h1 class="text-lg font-semibold mb-3">Anmelden</h1>
+    <h1 class="text-lg font-semibold mb-3"><%= adminLogin?'Verwaltung freischalten':pairAvailable?'Handy einmalig anmelden':'Anmelden' %></h1>
+    <% if(adminLogin) { %><p class="text-sm text-white/70 mb-3">Für die Verwaltung bitte deine persönliche PIN bestätigen.</p><% } else if(pairAvailable) { %><p class="text-sm text-white/70 mb-3">Wähle deinen Namen und gib deine PIN ein. Danach erkennt Timely diesen Browser bei weiteren QR-Scans im Betriebs-WLAN.</p><% } %>
     <% if(flash) { %><p class="text-sm text-amber-200 mb-3"><%= flash %></p><% } %>
     <form method="post" action="/login" class="space-y-3">
       <%- include('_csrf') %>
+      <input type="hidden" name="admin_login" value="<%= adminLogin?'1':'0' %>">
       <div>
-        <label class="block text-sm mb-1">Mitarbeiter</label>
-        <select name="employee_id"
+        <label for="employee_id" class="block text-sm mb-1">Mitarbeiter</label>
+        <select id="employee_id" name="employee_id" required
         class="employee-select w-full bg-transparent border border-white/15 rounded px-3 py-2">
+    <option value="" disabled <%= selectedEmployeeId?'':'selected' %>>Bitte deinen Namen auswählen</option>
   <% employees.forEach(e => { %>
-    <option value="<%= e.id %>"><%= e.name %></option>
+    <option value="<%= e.id %>" <%= selectedEmployeeId===String(e.id)?'selected':'' %>><%= e.name %></option>
   <% }) %>
 </select>
 
       </div>
       <div>
-        <label class="block text-sm mb-1">PIN (4–6 Ziffern)</label>
-        <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" class="w-full bg-transparent border border-white/15 rounded px-3 py-2" required/>
+        <label for="pin" class="block text-sm mb-1">PIN (4–6 Ziffern)</label>
+        <input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="current-password" class="w-full bg-transparent border border-white/15 rounded px-3 py-2" required/>
       </div>
+      <% if(pairAvailable && !adminLogin) { %>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" name="remember_device" checked class="mt-1"><span>Dieses persönliche Handy mit meinem Konto verknüpfen.<br><span class="text-xs text-white/60">Bei einem gemeinsam genutzten Gerät abwählen.</span></span></label>
+        <label for="device_label" class="block text-sm">Name für dein Gerät (optional)</label>
+        <input id="device_label" name="device_label" maxlength="80" placeholder="Zum Beispiel: Mein iPhone" class="w-full bg-transparent border border-white/15 rounded px-3 py-2">
+      <% } %>
       <% if (error) { %><div class="text-red-400 text-sm"><%= error %></div><% } %>
-      <button class="btn w-full rounded py-2 mt-1">Login</button>
+      <button class="btn w-full rounded py-2 mt-1"><%= adminLogin?'Verwaltung öffnen':'Anmelden' %></button>
     </form>
   </div>
 </body>

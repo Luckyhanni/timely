@@ -103,7 +103,7 @@
     <div class="grid lg:grid-cols-2 gap-6">
       <form method="post" action="/admin/onsite" class="timely-form space-y-3">
         <%- include('_csrf') %><input type="hidden" name="week" value="<%= week %>">
-        <p class="text-sm text-white/60">Mitarbeiter verbinden sich mit dem Betriebs-WLAN, scannen den Ausdruck und bestätigen mit ihrem Konto eine Buchung innerhalb von 2 Minuten. Für die nächste Buchung erneut scannen. Der Server prüft bei jeder Buchung den erlaubten Anschluss, auch bei Pausen. Eine Konto-Anmeldung zum Nachsehen bleibt von unterwegs möglich.</p>
+        <p class="text-sm text-white/60">Mitarbeiter verbinden sich mit dem Betriebs-WLAN und scannen den Ausdruck. Beim ersten Mal geben sie Name und PIN ein und verknüpfen ihr persönliches Handy. Weitere Scans öffnen direkt das zugeordnete Konto. Jede Buchung muss innerhalb von 2 Minuten bestätigt werden. Der Server prüft weiterhin den Betriebsanschluss, auch bei Pausen. Die Verwaltung erfordert weiterhin eine PIN.</p>
         <p class="text-sm">Dein aktuell erkannter Anschluss: <strong><%= ip %></strong><br><span class="text-white/50 text-xs">Nur übernehmen, wenn du gerade im Betriebs-WLAN bist.</span></p>
         <label>Erlaubte öffentliche IP-Adressen / Netze des Betriebs<textarea name="networks" rows="3" placeholder="Eine Adresse je Zeile"><%= onsiteConfig.networks %></textarea></label>
         <% if(!qrUrl) { %><p class="text-sm status-open">Vor der Aktivierung muss die öffentliche App-Adresse am Server als APP_URL eingerichtet werden. Bei einem vorgeschalteten Hosting-Proxy muss außerdem die Erkennung der Anschlussadresse stimmen.</p><% } %>
@@ -116,12 +116,28 @@
         <% if(qrImage) { %><div class="qr-sheet bg-white text-black p-6 rounded text-center">
           <h3 class="text-2xl font-bold">Timely · Hier Zeit buchen</h3><% if(!onsiteConfig.enabled) { %><p class="font-bold mt-2">NOCH NICHT AKTIV</p><% } %>
           <img class="w-64 max-w-full mx-auto my-3" src="<%= qrImage %>" alt="QR-Code zur Vor-Ort-Buchung">
-          <p>1. Mit dem Betriebs-WLAN verbinden.<br>2. QR-Code mit der Handykamera scannen.<br>3. Mit Name und PIN anmelden.<br>4. Einchecken, Auschecken oder Pause bestätigen.</p>
+          <p>1. Mit dem Betriebs-WLAN verbinden.<br>2. QR-Code mit der Handykamera scannen.<br>3. Einmalig Name und PIN eingeben, Handy verknüpfen.<br>4. Einchecken, Auschecken oder Pause bestätigen.</p>
           <p class="text-sm mt-3">Für jede Buchung erneut scannen.</p>
         </div><a href="/admin/qr" target="_blank" rel="noopener" class="inline-block btn-vintage rounded px-4 py-2 mt-3">QR-Code drucken</a><% } %>
         <p class="text-xs text-white/50 mt-4">Ein Papiercode kann kopiert werden. Der Ortsnachweis erfolgt über den erlaubten Internetanschluss, nicht über den Ausdruck. Wechselt die öffentliche IP des Betriebs, muss sie aktualisiert werden. Ein VPN ins Betriebsnetz würde ebenfalls als vor Ort gelten.</p>
       </div>
     </div>
+  </section>
+  <section class="card p-6">
+    <h2 class="font-semibold mb-4">Verknüpfte Mitarbeitergeräte</h2>
+    <p class="text-sm text-white/60 mb-4">Bei Verlust oder Weitergabe eines Handys hier sperren. Eine neue PIN oder die Deaktivierung des Kontos sperrt alle zugehörigen Geräte und beendet bestehende Sitzungen.</p>
+    <div class="grid lg:grid-cols-2 gap-3"><% devices.forEach(device=>{ %>
+      <div class="border border-white/10 rounded p-4">
+        <strong><%= device.name %> · <%= device.label %></strong><% if(device.id===currentDeviceId) { %><span class="text-sm text-amber-200"> · Dieses Gerät</span><% } %>
+        <p class="text-xs text-white/60 mt-2">Verknüpft: <%= dayjs(device.created_at).tz(TZ).format('DD.MM.YYYY') %> · Zuletzt verwendet: <%= dayjs(device.last_used_at).tz(TZ).format('DD.MM.YYYY HH:mm') %></p>
+        <form method="post" action="/admin/devices/revoke" class="timely-form mt-3 space-y-2">
+          <%- include('_csrf') %><input type="hidden" name="id" value="<%= device.id %>"><input type="hidden" name="week" value="<%= week %>">
+          <label>Grund<input name="reason" required minlength="3" maxlength="500" placeholder="Zum Beispiel: Handy verloren."></label>
+          <button class="btn-rose rounded px-4 py-2">Gerät sperren<%= device.id===currentDeviceId?' und abmelden':'' %></button>
+        </form>
+      </div>
+    <% }) %></div>
+    <% if(!devices.length) { %><p class="text-sm text-white/50">Noch keine Geräte verknüpft.</p><% } %>
   </section>
   <section class="card p-6">
     <h2 class="font-semibold mb-4">Letzte Änderungen</h2>
