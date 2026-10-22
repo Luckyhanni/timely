@@ -7,6 +7,7 @@
     <div class="text-slate-400 hidden sm:block"><%= now.format('dddd, DD. MMMM YYYY') %></div>
   </div>
   <% if(deviceLinked) { %><p class="text-sm text-white/60 mt-3">Dieses Handy ist mit deinem Konto verknüpft. <a class="underline" href="/devices">Geräte verwalten</a></p><% } %>
+  <div class="flex flex-wrap gap-3 mt-4 text-sm"><a class="border border-white/20 rounded px-3 py-2" href="/history">Meine Wochen- und Monatsstunden</a><a class="border border-white/20 rounded px-3 py-2" href="/leave">Urlaub eintragen</a></div>
   <div class="grid md:grid-cols-3 gap-6 mt-6">
     <div class="md:col-span-2">
       <div class="card p-6">

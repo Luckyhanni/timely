@@ -18,7 +18,7 @@ import { ensureSchema } from './lib/schema.js';
 import { parseNetworks, validGrant, newQrToken, normalizeIp } from './lib/onsite.js';
 import { deviceLifetime,deviceCookieName,deviceCookieOptions,deviceToken,tokenHash,newDevice,deviceLabel,findDevice,listDevices } from './lib/devices.js';
 import { closurePlan } from './lib/legacy-closure.js';
-import { TZ, profiles, statusLabels, validDate, dateKey, addDays, monday, weekNumber, defaultProfile, plannedStatus, countsSick, duration, summary, fromLocal } from './public/js/rules.js';
+import { TZ, profiles, statusLabels, validDate, dateKey, addDays, monday, weekNumber, defaultProfile, plannedStatus, countsSick, duration, summary, fromLocal,monthRange,periodTotals } from './public/js/rules.js';
 
 dayjs.extend(utc); dayjs.extend(timezone);
 types.setTypeParser(1082,value=>value);
@@ -64,7 +64,7 @@ app.use(route(async(req,res,next)=>{
   req.session.csrf ||= randomBytes(24).toString('hex');
   res.locals.csrf=req.session.csrf; res.locals.user=null; res.locals.deviceLinked=false; res.locals.flash=req.session.flash || null;
   delete req.session.flash;
-  res.locals.duration=duration; res.locals.dayjs=dayjs; res.locals.TZ=TZ;
+  res.locals.duration=duration; res.locals.dayjs=dayjs; res.locals.TZ=TZ; res.locals.addDays=addDays;
   if(req.method==='POST' && !sameSecret(req.body._csrf,req.session.csrf)) fail('Die Sitzung ist abgelaufen. Seite neu laden und erneut versuchen.',403);
   if(req.session.user) {
     const {rows}=await pool.query('SELECT id,name,is_admin,schedule_profile,auth_version FROM employees WHERE id=$1 AND active=TRUE',[req.session.user.id]);
@@ -103,7 +103,17 @@ async function transaction(handler) {
 // Also serializes cross-day corrections against a concurrent new check-in.
 async function lockDay(db,employeeId,date) { await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`timely:employee:${employeeId}`]); }
 async function employeeList() { return (await pool.query('SELECT id,name,is_admin,schedule_profile,active FROM employees ORDER BY active DESC,name')).rows; }
-function back(req,res,message) { req.session.flash=message; res.redirect(`/admin?week=${monday(validDate(req.body.week)?req.body.week:dateKey())}`); }
+function back(req,res,message) {
+  req.session.flash=message;
+  const query=new URLSearchParams({week:monday(validDate(req.body.week)?req.body.week:dateKey())});
+  if(/^\d{4}-(0[1-9]|1[0-2])$/.test(req.body.month || '')) query.set('month',req.body.month);
+  if(/^\d+$/.test(req.body.employee_filter || '')) query.set('employee_id',req.body.employee_filter);
+  res.redirect('/admin?'+query);
+}
+function reportSelection(query) {
+  const week=monday(query.week?checkDate(query.week):dateKey()),to=addDays(week,6),month=query.month || week.slice(0,7);
+  try {const {from:monthFrom,to:monthTo}=monthRange(month);return {week,to,month,monthFrom,monthTo};} catch(error) {fail(error.message);}
+}
 function correctionInstant(date,value) {
   if(!value) return null;
   // Accept already-open older forms only when their date matches the fixed day.
@@ -111,11 +121,11 @@ function correctionInstant(date,value) {
   if(!time || !/^\d{2}:\d{2}$/.test(time)) fail('Bitte nur eine gültige Uhrzeit am angezeigten Tag eingeben.');
   try { return fromLocal(date+'T'+time); } catch(error) { fail(error.message); }
 }
-async function loadPeriod(from,to) {
+async function loadPeriod(from,to,employeeId=null) {
   const [entries,pauses,statuses]=await Promise.all([
-    pool.query('SELECT * FROM time_entries WHERE date BETWEEN $1 AND $2 ORDER BY date,id',[from,to]),
-    pool.query('SELECT b.* FROM breaks b JOIN time_entries t ON t.id=b.entry_id WHERE t.date BETWEEN $1 AND $2 ORDER BY b.start,b.id',[from,to]),
-    pool.query('SELECT * FROM day_statuses WHERE date BETWEEN $1 AND $2',[from,to])
+    pool.query('SELECT * FROM time_entries WHERE date BETWEEN $1 AND $2 AND ($3::int IS NULL OR employee_id=$3) ORDER BY date,id',[from,to,employeeId]),
+    pool.query('SELECT b.* FROM breaks b JOIN time_entries t ON t.id=b.entry_id WHERE t.date BETWEEN $1 AND $2 AND ($3::int IS NULL OR t.employee_id=$3) ORDER BY b.start,b.id',[from,to,employeeId]),
+    pool.query('SELECT * FROM day_statuses WHERE date BETWEEN $1 AND $2 AND ($3::int IS NULL OR employee_id=$3)',[from,to,employeeId])
   ]);
   return {entries:entries.rows.map(e=>({...e,...summary(e,pauses.rows.filter(b=>b.entry_id===e.id))})),statuses:statuses.rows,breaks:pauses.rows};
 }
@@ -260,32 +270,73 @@ app.post('/action/:action(checkin|checkout|break-start|break-end)',auth,route(as
   delete req.session.onsite; res.redirect('/');
 }));
 app.get('/history',auth,route(async(req,res)=>{
-  const {rows}=await pool.query('SELECT * FROM time_entries WHERE employee_id=$1 ORDER BY date DESC,id DESC LIMIT 60',[req.session.user.id]);
-  const {rows:pauses}=await pool.query('SELECT b.* FROM breaks b JOIN time_entries t ON t.id=b.entry_id WHERE t.employee_id=$1',[req.session.user.id]);
-  const data=rows.map(e=>({...e,...summary(e,pauses.filter(b=>b.entry_id===e.id)),check_in:e.check_in?dayjs(e.check_in).tz(TZ).format('HH:mm'):null,check_out:e.check_out?dayjs(e.check_out).tz(TZ).format('HH:mm'):null}));
-  res.render('history',{data});
+  const selection=reportSelection(req.query),user=req.session.user;
+  const period=await loadPeriod(selection.week<selection.monthFrom?selection.week:selection.monthFrom,selection.to>selection.monthTo?selection.to:selection.monthTo,user.id);
+  const weekTotals=periodTotals(user,period.entries,period.statuses,selection.week,selection.to);
+  const monthTotals=periodTotals(user,period.entries,period.statuses,selection.monthFrom,selection.monthTo);
+  const data=period.entries.filter(e=>e.date>=selection.monthFrom&&e.date<=selection.monthTo).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).map(e=>({...e,completed:!!e.check_out,check_in:e.check_in?dayjs(e.check_in).tz(TZ).format('HH:mm'):null,check_out:e.check_out?dayjs(e.check_out).tz(TZ).format('HH:mm'):null}));
+  res.render('history',{data,selection,weekTotals,monthTotals,statuses:period.statuses.filter(s=>s.status!=='work'&&s.date>=selection.monthFrom&&s.date<=selection.monthTo).sort((a,b)=>a.date.localeCompare(b.date)),statusLabels});
+}));
+app.get('/leave',auth,route(async(req,res)=>{
+  const year=String(req.query.year || dateKey().slice(0,4));
+  if(!/^[1-9]\d{3}$/.test(year)||!validDate(year+'-01-01')) fail('Bitte ein gültiges Jahr wählen.');
+  const statuses=(await pool.query("SELECT date,self_entered FROM day_statuses WHERE employee_id=$1 AND status='leave' AND date BETWEEN $2 AND $3 ORDER BY date",[req.session.user.id,year+'-01-01',year+'-12-31'])).rows;
+  const ranges=[];
+  for(const status of statuses) {
+    const last=ranges.at(-1);
+    if(last && last.selfEntered===status.self_entered && addDays(last.to,1)===status.date) last.to=status.date;
+    else ranges.push({from:status.date,to:status.date,selfEntered:status.self_entered});
+  }
+  res.render('leave',{year,today:dateKey(),ranges});
+}));
+app.post('/leave/:action(save|cancel)',auth,route(async(req,res)=>{
+  const id=req.session.user.id,from=checkDate(req.body.from),to=checkDate(req.body.to),cancel=req.params.action==='cancel';
+  if(to<from || to>addDays(from,366)) fail('Bitte einen Zeitraum von höchstens 367 Tagen wählen.');
+  if(cancel && from<dateKey()) fail('Vergangenen Urlaub bitte vom Admin korrigieren lassen.');
+  const why=reason(req.body.note || (cancel?'Selbst eingetragenen Urlaub zurückgenommen':'Urlaub vom Mitarbeiter selbst eingetragen'));
+  await transaction(async db=>{
+    await lockDay(db,id,from);
+    for(let date=from;date<=to;date=addDays(date,1)) {
+      const before=(await db.query('SELECT * FROM day_statuses WHERE employee_id=$1 AND date=$2 FOR UPDATE',[id,date])).rows[0] || null;
+      if(cancel) {
+        if(!before) continue;
+        if(before.status!=='leave' || !before.self_entered) fail('Vom Admin hinterlegte Abwesenheiten bitte vom Admin ändern lassen.',409);
+        await db.query('DELETE FROM day_statuses WHERE employee_id=$1 AND date=$2',[id,date]);
+        await audit(db,req,'Eigener Urlaub',id,date,before,null,why);
+      } else {
+        if((await db.query('SELECT id FROM time_entries WHERE employee_id=$1 AND date=$2 AND check_in IS NOT NULL',[id,date])).rows.length) fail(`Am ${dayjs(date).format('DD.MM.YYYY')} sind Arbeitszeiten vorhanden. Bitte den Admin um Klärung bitten.`,409);
+        if(before?.status==='leave') continue;
+        if(before) fail(`Am ${dayjs(date).format('DD.MM.YYYY')} ist bereits ein anderer Tagesstatus hinterlegt. Bitte den Admin um Klärung bitten.`,409);
+        const after=(await db.query("INSERT INTO day_statuses(employee_id,date,status,self_entered) VALUES($1,$2,'leave',TRUE) RETURNING *",[id,date])).rows[0];
+        await audit(db,req,'Eigener Urlaub',id,date,before,after,why);
+      }
+    }
+  });
+  req.session.flash=cancel?'Dein Urlaub wurde zurückgenommen.':'Dein Urlaub wurde eingetragen und ist in der Verwaltung sichtbar.';
+  res.redirect('/leave?year='+from.slice(0,4));
 }));
 
 app.get('/admin',auth,admin,route(async(req,res)=>{
-  const week=monday(req.query.week?checkDate(req.query.week):dateKey()),to=addDays(week,6),year=addDays(week,3).slice(0,4);
-  const [employees,period,settings,yearStatuses,open,audits,devices]=await Promise.all([
-    employeeList(),loadPeriod(week,to),onsiteSettings(),
+  const {week,to,month,monthFrom,monthTo}=reportSelection(req.query),year=addDays(week,3).slice(0,4),employeeFilter=req.query.employee_id?integer(req.query.employee_id):null;
+  const [employees,period,settings,yearStatuses,open,audits,devices,monthPeriod]=await Promise.all([
+    employeeList(),loadPeriod(week,to,employeeFilter),onsiteSettings(),
     pool.query('SELECT * FROM day_statuses WHERE date BETWEEN $1 AND $2',[`${year}-01-01`,`${year}-12-31`]),
     pool.query('SELECT t.*,e.name FROM time_entries t JOIN employees e ON e.id=t.employee_id WHERE check_in IS NOT NULL AND check_out IS NULL ORDER BY date,e.name'),
     pool.query('SELECT a.*,e.name AS employee FROM audit_log a LEFT JOIN employees e ON e.id=a.employee_id ORDER BY a.id DESC LIMIT 30'),
-    listDevices(pool)
+    listDevices(pool),loadPeriod(monthFrom,monthTo,employeeFilter)
   ]);
   const days=Array.from({length:7},(_,i)=>addDays(week,i));
-  const rows=employees.filter(e=>e.active || period.entries.some(t=>t.employee_id===e.id) || period.statuses.some(s=>s.employee_id===e.id)).map(employee=>{
+  const rows=employees.filter(e=>(!employeeFilter||e.id===employeeFilter) && (e.active || period.entries.some(t=>t.employee_id===e.id) || period.statuses.some(s=>s.employee_id===e.id) || monthPeriod.entries.some(t=>t.employee_id===e.id) || monthPeriod.statuses.some(s=>s.employee_id===e.id))).map(employee=>{
     const cells=days.map(date=>{
       const entries=period.entries.filter(t=>t.employee_id===employee.id&&t.date===date),status=period.statuses.find(s=>s.employee_id===employee.id&&s.date===date);
       return {date,entries,status,planned:plannedStatus(employee.schedule_profile,date,status?.planned_override),sick:countsSick(employee.schedule_profile,date,status?.status,status?.planned_override),closedMinutes:entries.filter(t=>t.check_out).reduce((sum,t)=>sum+t.netMinutes,0),open:entries.some(t=>t.check_in&&!t.check_out)};
     });
-    return {employee,cells,minutes:cells.reduce((sum,c)=>sum+c.closedMinutes,0),sick:cells.filter(c=>c.sick).length,yearSick:yearStatuses.rows.filter(s=>s.employee_id===employee.id&&countsSick(employee.schedule_profile,s.date,s.status,s.planned_override)).length};
+    return {employee,cells,minutes:cells.reduce((sum,c)=>sum+c.closedMinutes,0),sick:cells.filter(c=>c.sick).length,weekOpen:period.entries.filter(t=>t.employee_id===employee.id&&t.check_in&&!t.check_out).length,monthTotals:periodTotals(employee,monthPeriod.entries,monthPeriod.statuses,monthFrom,monthTo),yearSick:yearStatuses.rows.filter(s=>s.employee_id===employee.id&&countsSick(employee.schedule_profile,s.date,s.status,s.planned_override)).length};
   });
   const url=baseUrl(),qrUrl=url?`${url}/vor-ort/${settings.token}`:null;
   const qrImage=qrUrl?await QRCode.toDataURL(qrUrl,{width:400,margin:4,errorCorrectionLevel:'M'}):null;
-  res.render('admin',{employees,rows,days,week,to,year,weekTitle:weekNumber(week),previous:addDays(week,-7),next:addDays(week,7),profiles,statusLabels,onsiteConfig:settings,ip:normalizeIp(req.ip),qrUrl,qrImage,open:open.rows,audits:audits.rows,plannedStatus,devices,currentDeviceId:req.session.deviceId || null});
+  const navQuery=new URLSearchParams({month,...(employeeFilter?{employee_id:String(employeeFilter)}:{})});
+  res.render('admin',{employees,rows,days,week,to,year,month,monthFrom,monthTo,employeeFilter,navQuery:String(navQuery),weekTitle:weekNumber(week),previous:addDays(week,-7),next:addDays(week,7),profiles,statusLabels,onsiteConfig:settings,ip:normalizeIp(req.ip),qrUrl,qrImage,open:open.rows.filter(e=>!employeeFilter||e.employee_id===employeeFilter),audits:audits.rows,plannedStatus,devices,currentDeviceId:req.session.deviceId || null});
 }));
 // Admin-only setup diagnostics: no cookies, credentials or arbitrary headers are exposed.
 app.get('/admin/network-info',auth,admin,(req,res)=>{
@@ -384,7 +435,7 @@ app.post('/admin/entries/save',auth,admin,route(async(req,res)=>{
   back(req,res,'Zeitkorrektur gespeichert und protokolliert.');
 }));
 app.post('/admin/days/save',auth,admin,route(async(req,res)=>{
-  const employeeId=integer(req.body.employee_id),from=checkDate(req.body.from),to=checkDate(req.body.to),why=reason(req.body.reason),status=req.body.status;
+  const employeeId=integer(req.body.employee_id),from=checkDate(req.body.from),to=checkDate(req.body.to),why=reason(req.body.reason || 'Abwesenheit im Adminbereich eingetragen oder korrigiert'),status=req.body.status;
   if(to<from || to>addDays(from,366)) fail('Bitte einen Zeitraum von höchstens 367 Tagen wählen.');
   if(status!=='clear'&&!Object.hasOwn(statusLabels,status)) fail('Ungültiger Tagesstatus.');
   const override=req.body.planned_override || null;
@@ -397,7 +448,7 @@ app.post('/admin/days/save',auth,admin,route(async(req,res)=>{
       if(!['clear','work'].includes(status) && (await db.query('SELECT id FROM time_entries WHERE employee_id=$1 AND date=$2 AND check_in IS NOT NULL',[employeeId,date])).rows.length) fail(`Am ${date} sind Arbeitszeiten vorhanden. Abwesenheit nicht gespeichert.`);
       let after=null;
       if(status==='clear') await db.query('DELETE FROM day_statuses WHERE employee_id=$1 AND date=$2',[employeeId,date]);
-      else after=(await db.query('INSERT INTO day_statuses(employee_id,date,status,planned_override) VALUES($1,$2,$3,$4) ON CONFLICT(employee_id,date) DO UPDATE SET status=EXCLUDED.status,planned_override=EXCLUDED.planned_override,revision=day_statuses.revision+1 RETURNING *',[employeeId,date,status,override])).rows[0];
+      else after=(await db.query('INSERT INTO day_statuses(employee_id,date,status,planned_override) VALUES($1,$2,$3,$4) ON CONFLICT(employee_id,date) DO UPDATE SET status=EXCLUDED.status,planned_override=EXCLUDED.planned_override,self_entered=FALSE,revision=day_statuses.revision+1 RETURNING *',[employeeId,date,status,override])).rows[0];
       await audit(db,req,'Tagesstatus',employeeId,date,before,after,why);
     }
   });
@@ -440,9 +491,10 @@ app.post('/admin/onsite',auth,admin,route(async(req,res)=>{
   back(req,res,'Vor-Ort-Einstellung gespeichert. Bei neuem QR-Code bitte den Ausdruck ersetzen.');
 }));
 app.get('/admin/export',auth,admin,route(async(req,res)=>{
-  const from=checkDate(req.query.from),to=checkDate(req.query.to);
+  const from=checkDate(req.query.from),to=checkDate(req.query.to),employeeId=req.query.employee_id?integer(req.query.employee_id):null;
   if(to<from||to>addDays(from,366)) fail('Bitte einen Zeitraum von höchstens 367 Tagen wählen.');
-  const [period,employees]=await Promise.all([loadPeriod(from,to),employeeList()]);
+  const [period,allEmployees]=await Promise.all([loadPeriod(from,to,employeeId),employeeList()]);
+  const employees=allEmployees.filter(employee=>!employeeId || employee.id===employeeId);
   const workbook=new ExcelJS.Workbook(),ws=workbook.addWorksheet('Zeiten');
   ws.columns=[{header:'Datum',key:'date',width:12},{header:'Mitarbeiter',key:'employee',width:24},{header:'Check-In',key:'start',width:21},{header:'Check-Out',key:'end',width:21},{header:'Pausen (Min)',key:'pause',width:15},{header:'Netto (Std)',key:'net',width:15},{header:'Status',key:'status',width:22}];
   for(const entry of period.entries) ws.addRow({date:entry.date,employee:employees.find(e=>e.id===entry.employee_id)?.name,start:entry.check_in?dayjs(entry.check_in).tz(TZ).format('DD.MM.YYYY HH:mm'):'',end:entry.check_out?dayjs(entry.check_out).tz(TZ).format('DD.MM.YYYY HH:mm'):'',pause:entry.breakMinutes,net:entry.check_out?entry.netMinutes/60:null,status:entry.check_in&&!entry.check_out?'Offen · nicht summiert':entry.check_out?'Abgeschlossen':'Ohne Buchung'});

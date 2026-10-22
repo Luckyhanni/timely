@@ -1,28 +1,15 @@
 <% layout('layout',{user}) %>
-<h1 class="text-2xl font-bold mb-4">Meine Historie</h1>
-<div class="card overflow-x-auto">
-  <table class="min-w-full text-sm whitespace-nowrap">
-    <thead>
-      <tr class="table-head text-left">
-        <th class="px-4 py-2">Datum</th>
-        <th class="px-4 py-2">Check-In</th>
-        <th class="px-4 py-2">Check-Out</th>
-        <th class="px-4 py-2">Arbeitszeit</th>
-        <th class="px-4 py-2">Pausen</th>
-        <th class="px-4 py-2">Netto</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% data.forEach(r=>{ %>
-        <tr class="table-row">
-          <td class="px-4 py-2"><%= r.date %></td>
-          <td class="px-4 py-2"><%= r.check_in||'' %></td>
-          <td class="px-4 py-2"><%= r.check_out||'' %></td>
-          <td class="px-4 py-2"><%= Math.floor(r.workMinutes/60) %>h <%= r.workMinutes%60 %>m</td>
-          <td class="px-4 py-2"><%= r.breakMinutes %>m</td>
-          <td class="px-4 py-2"><%= Math.floor(r.netMinutes/60) %>h <%= r.netMinutes%60 %>m</td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
+<div class="max-w-6xl mx-auto space-y-5">
+  <h1 class="text-2xl font-bold">Meine Zeiten · <%= user.name %></h1>
+  <form method="get" class="timely-form flex flex-wrap items-end gap-3"><label>Woche<input type="date" name="week" value="<%= selection.week %>" required></label><label>Monat<input type="month" name="month" value="<%= selection.month %>" required></label><button class="btn-vintage px-4 py-2 rounded">Anzeigen</button></form>
+  <div class="grid sm:grid-cols-2 gap-4">
+    <section class="card p-5"><h2 class="text-white/60">Deine Woche · <%= dayjs(selection.week).format('DD.MM.') %>–<%= dayjs(selection.to).format('DD.MM.YYYY') %></h2><p class="text-3xl font-bold mt-2"><%= duration(weekTotals.minutes) %></p><p class="text-sm text-white/60 mt-2">Abgeschlossene Nettozeit · <%= weekTotals.sick %> Krankheitstage<%= weekTotals.open?' · '+weekTotals.open+' offene Buchung(en)':'' %></p></section>
+    <section class="card p-5"><h2 class="text-white/60">Dein Monat · <%= dayjs(selection.monthFrom).format('MM/YYYY') %></h2><p class="text-3xl font-bold mt-2"><%= duration(monthTotals.minutes) %></p><p class="text-sm text-white/60 mt-2">Abgeschlossene Nettozeit · <%= monthTotals.sick %> Krankheitstage<%= monthTotals.open?' · '+monthTotals.open+' offene Buchung(en)':'' %></p></section>
+  </div>
+  <p class="text-sm text-white/60">Pausen werden abgezogen. Offene Buchungen zählen nach dem Abschluss. Urlaub und Krankheit werden separat geführt.</p>
+  <section class="card p-5 overflow-x-auto"><h2 class="font-semibold mb-4">Arbeitszeiten im ausgewählten Monat</h2><table class="min-w-full text-sm whitespace-nowrap"><thead><tr class="table-head text-left"><th class="px-4 py-2">Datum</th><th class="px-4 py-2">Beginn</th><th class="px-4 py-2">Ende</th><th class="px-4 py-2">Pausen</th><th class="px-4 py-2">Netto</th></tr></thead><tbody>
+    <% data.forEach(r=>{ %><tr class="table-row"><td class="px-4 py-2"><%= dayjs(r.date).format('DD.MM.YYYY') %></td><td class="px-4 py-2"><%= r.check_in || '—' %></td><td class="px-4 py-2"><%= r.check_out || (r.check_in?'Offen':'—') %></td><td class="px-4 py-2"><%= r.breakMinutes %> min</td><td class="px-4 py-2"><%= r.completed?duration(r.netMinutes):'Noch offen' %></td></tr><% }) %>
+    <% if(!data.length) { %><tr><td class="px-4 py-3" colspan="5">In diesem Monat sind noch keine Arbeitszeiten erfasst.</td></tr><% } %>
+  </tbody></table></section>
+  <section class="card p-5"><div class="flex justify-between gap-3 mb-3"><h2 class="font-semibold">Abwesenheiten im ausgewählten Monat</h2><a class="underline text-sm" href="/leave">Urlaub eintragen</a></div><div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2"><% statuses.forEach(s=>{ %><div class="text-sm border border-white/10 rounded p-3"><%= dayjs(s.date).format('DD.MM.YYYY') %> · <%= statusLabels[s.status] %></div><% }) %></div><% if(!statuses.length) { %><p class="text-sm text-white/60">Keine Abwesenheiten eingetragen.</p><% } %></section>
 </div>

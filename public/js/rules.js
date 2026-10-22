@@ -61,8 +61,8 @@ export function weekNumber(date) {
 }
 export function defaultProfile(name) {
   const first = name.trim().split(/\s+/)[0].toLowerCase();
-  if (['sebastian','andi','david'].includes(first)) return 'weekdays';
-  if (first === 'theo') return 'apprentice';
+  if (['sebastian','andi','andy','david'].includes(first)) return 'weekdays';
+  if (['theo','teo'].includes(first)) return 'apprentice';
   if (first === 'babette') return 'tue_sat';
   if (['jessica','nina','kilian','luise'].includes(first)) return 'casual';
   return 'unassigned';
@@ -84,6 +84,15 @@ export function countsSick(profile, date, status, override = null) {
   return status === 'sick' && profile !== 'casual' && plannedStatus(profile,date,override) === 'work';
 }
 export function duration(minutes) { return `${Math.floor(minutes/60)}h ${minutes%60}m`; }
+export function monthRange(month) {
+  if(typeof month!=='string' || !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month) || !validDate(month+'-01')) throw new Error('Bitte einen gültigen Monat auswählen.');
+  return {from:month+'-01',to:new Date(Date.UTC(+month.slice(0,4),+month.slice(5),0)).toISOString().slice(0,10)};
+}
+export function periodTotals(employee,entries,statuses,from,to) {
+  const days=entries.filter(entry=>entry.employee_id===employee.id && entry.date>=from && entry.date<=to);
+  return {minutes:days.filter(entry=>entry.check_out).reduce((sum,entry)=>sum+entry.netMinutes,0),open:days.filter(entry=>entry.check_in&&!entry.check_out).length,
+    sick:statuses.filter(status=>status.employee_id===employee.id && status.date>=from && status.date<=to && countsSick(employee.schedule_profile,status.date,status.status,status.planned_override)).length};
+}
 export function summary(entry, breaks = [], now = new Date()) {
   if (!entry?.check_in) return {workMinutes:0,breakMinutes:0,netMinutes:0,pausesCount:0};
   const start = new Date(entry.check_in).getTime();
