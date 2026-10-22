@@ -73,11 +73,12 @@ option:hover, option:checked { background:#2c2c2c; color:#fff; }
 
     <nav class="px-4 space-y-1 mt-3 lg:mt-0">
       <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/">Zeiterfassung</a>
-      <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/history">Meine Historie</a>
+      <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/history">Meine Zeiten · Woche & Monat</a>
+      <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/leave">Mein Urlaub</a>
       <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/devices">Meine Geräte</a>
       <% if (user && user.is_admin) { %>
         <div class="mt-4 text-[10px] uppercase text-white/40 px-3 tracking-widest">Admin</div>
-        <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/admin">Team & Wochenübersicht</a>
+        <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/admin">Team · Wochen & Monate</a>
       <% } %>
     </nav>
 

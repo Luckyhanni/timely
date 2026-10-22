@@ -1,21 +1,35 @@
 <% layout('layout',{user}) %>
 <div class="max-w-screen-2xl mx-auto space-y-6">
   <div class="flex flex-wrap justify-between items-end gap-4">
-    <div><div class="text-sm text-white/50">Verwaltung</div><h1 class="text-2xl md:text-3xl font-bold">Team & Wochenübersicht</h1></div>
+    <div><div class="text-sm text-white/50">Verwaltung</div><h1 class="text-2xl md:text-3xl font-bold">Zeiten je Mitarbeiter</h1></div>
     <form method="get" class="timely-form flex flex-wrap items-end gap-2">
+      <label>Mitarbeiter<select name="employee_id"><option value="">Alle Mitarbeiter</option><% employees.forEach(e=>{ %><option value="<%= e.id %>" <%= employeeFilter===e.id?'selected':'' %>><%= e.name %></option><% }) %></select></label>
       <label>Woche wählen<input type="date" name="week" value="<%= week %>" required></label>
+      <label>Monat wählen<input type="month" name="month" value="<%= month %>" required></label>
       <button class="btn-vintage px-4 py-2 rounded">Anzeigen</button>
     </form>
   </div>
-  <div class="grid sm:grid-cols-3 gap-3">
-    <div class="card p-4"><div class="text-white/60 text-sm">Abgeschlossene Arbeitszeit</div><div class="text-2xl font-bold mt-2"><%= duration(rows.reduce((sum,r)=>sum+r.minutes,0)) %></div><div class="text-xs text-white/50">Netto · ausgewählte Woche</div></div>
-    <div class="card p-4"><div class="text-white/60 text-sm">Krankheitstage</div><div class="text-2xl font-bold mt-2"><%= rows.reduce((sum,r)=>sum+r.sick,0) %></div><div class="text-xs text-white/50">Nur erfasste Krankheit an geplanten Arbeitstagen</div></div>
-    <div class="card p-4"><div class="text-white/60 text-sm">Offene Buchungen insgesamt</div><div class="text-2xl font-bold mt-2 status-open"><%= open.length %></div><a class="text-xs underline" href="#offene-buchungen">Prüfen und korrigieren</a></div>
-  </div>
+  <section class="card p-4 md:p-6">
+    <h2 class="font-semibold mb-4">Arbeitsstunden pro Mitarbeiter</h2>
+    <div class="overflow-x-auto"><table class="min-w-full text-sm whitespace-nowrap"><thead class="text-left text-amber-200"><tr><th class="p-3">Mitarbeiter</th><th class="p-3">Woche · <%= dayjs(week).format('DD.MM.') %>–<%= dayjs(to).format('DD.MM.') %></th><th class="p-3">Monat · <%= dayjs(monthFrom).format('MM/YYYY') %></th><th class="p-3">Krank · Woche / Monat</th><th class="p-3"></th></tr></thead><tbody>
+      <% rows.forEach(row=>{ %><tr class="border-t border-white/10"><td class="p-3"><strong><%= row.employee.name %></strong><div class="text-xs text-white/50"><%= profiles[row.employee.schedule_profile] %></div></td><td class="p-3"><strong class="text-lg"><%= duration(row.minutes) %></strong><% if(row.weekOpen) { %><div class="text-xs status-open"><%= row.weekOpen %> Buchung(en) offen</div><% } %></td><td class="p-3"><strong class="text-lg"><%= duration(row.monthTotals.minutes) %></strong><% if(row.monthTotals.open) { %><div class="text-xs status-open"><%= row.monthTotals.open %> Buchung(en) offen</div><% } %></td><td class="p-3"><%= row.employee.schedule_profile==='casual'?'—':row.sick+' / '+row.monthTotals.sick %></td><td class="p-3"><a class="underline" href="/admin?week=<%= week %>&month=<%= month %>&employee_id=<%= row.employee.id %>#abwesenheit">Krank / Urlaub eintragen</a></td></tr><% }) %>
+    </tbody></table></div>
+    <p class="text-xs text-white/50 mt-3">Abgeschlossene Netto-Arbeitszeit nach Abzug der Pausen. Offene Buchungen zählen nach ihrem Abschluss. Krankheit und Urlaub erhöhen die geleisteten Stunden nicht.</p>
+  </section>
+  <section class="card p-4 md:p-6" id="abwesenheit">
+    <h2 class="font-semibold mb-4">Krankheit oder Urlaub eintragen</h2>
+    <form action="/admin/days/save" method="post" class="timely-form space-y-3">
+      <%- include('_csrf') %><input type="hidden" name="week" value="<%= week %>"><input type="hidden" name="month" value="<%= month %>"><input type="hidden" name="employee_filter" value="<%= employeeFilter || '' %>">
+      <div class="grid sm:grid-cols-3 gap-3"><label>Mitarbeiter<select name="employee_id" required><option value="" disabled <%= employeeFilter?'':'selected' %>>Bitte Mitarbeiter auswählen</option><% employees.filter(e=>e.active).forEach(e=>{ %><option value="<%= e.id %>" <%= employeeFilter===e.id?'selected':'' %>><%= e.name %></option><% }) %></select></label><label>Von<input type="date" name="from" value="<%= week %>" required></label><label>Bis einschließlich<input type="date" name="to" value="<%= addDays(week,4) %>" required></label></div>
+      <details><summary class="text-sm">Notiz hinzufügen (optional)</summary><label class="mt-2">Notiz<textarea name="reason" minlength="3" maxlength="500"></textarea></label></details>
+      <div class="flex flex-wrap gap-2"><button name="status" value="sick" class="btn-rose rounded px-4 py-2">Als krank eintragen</button><button name="status" value="leave" class="btn-vintage rounded px-4 py-2">Urlaub eintragen</button><button name="status" value="clear" class="border border-white/20 rounded px-4 py-2 text-sm">Abwesenheit entfernen</button></div>
+      <p class="text-xs text-white/50">Speichert den gesamten Zeitraum. Vorhandene Arbeitszeiten werden nicht überschrieben. Krankheitstage zählen nach dem Arbeitsplan des Mitarbeiters.</p>
+    </form>
+  </section>
   <section class="card p-4 md:p-6">
     <div class="flex flex-wrap justify-between gap-3 mb-4">
       <h2 class="font-semibold"><%= weekTitle %> · <%= dayjs(week).format('DD.MM.') %> bis <%= dayjs(to).format('DD.MM.YYYY') %></h2>
-      <div class="flex gap-4 text-sm"><a class="underline" href="?week=<%= previous %>">← Vorige</a><a class="underline" href="/admin">Diese Woche</a><a class="underline" href="?week=<%= next %>">Nächste →</a></div>
+      <div class="flex gap-4 text-sm"><a class="underline" href="?week=<%= previous %>&<%= navQuery %>">← Vorige</a><a class="underline" href="/admin<%= employeeFilter?'?employee_id='+employeeFilter:'' %>">Diese Woche</a><a class="underline" href="?week=<%= next %>&<%= navQuery %>">Nächste →</a></div>
     </div>
     <div class="overflow-x-auto">
       <table class="week-table">
@@ -51,8 +65,8 @@
     <% }) %></div>
   </section>
   <div class="grid xl:grid-cols-2 gap-6">
-    <section class="card p-6">
-      <h2 class="font-semibold mb-4">Krankheit, Urlaub & Tagesplan</h2>
+    <details class="card p-6">
+      <summary class="font-semibold mb-4">Weitere Tagesplan-Einstellungen</summary>
       <form action="/admin/days/save" method="post" class="timely-form space-y-3">
         <%- include('_csrf') %><input name="week" type="hidden" value="<%= week %>">
         <label>Mitarbeiter<select name="employee_id" required><% employees.forEach(e=>{ %><option value="<%= e.id %>"><%= e.name %></option><% }) %></select></label>
@@ -63,13 +77,15 @@
         <p class="text-xs text-white/60">Sebastian, Andi und David: Mo–Fr. Babette: Di–Sa. Theo: Mo–Fr, mittwochs Berufsschule außer in den Ferien. Aushilfen: keine Krankheitstage. Schulferien sind bis Sommer 2030 hinterlegt; schulische Abweichungen und arbeitsfreie Feiertage hier ausdrücklich eintragen. Eine Krankmeldung wird gespeichert, an freien oder Schultagen aber nicht als Krankheitstag gezählt.</p>
         <button class="btn-vintage rounded px-4 py-2">Status speichern</button>
       </form>
-    </section>
+    </details>
     <section class="card p-6">
       <h2 class="font-semibold mb-4">Excel-Export</h2>
       <form method="get" action="/admin/export" class="timely-form space-y-3">
+        <% if(employeeFilter) { %><input type="hidden" name="employee_id" value="<%= employeeFilter %>"><% } %>
         <div class="grid sm:grid-cols-2 gap-3"><label>Von<input type="date" name="from" value="<%= week %>" required></label><label>Bis<input type="date" name="to" value="<%= to %>" required></label></div>
         <p class="text-sm text-white/60">Arbeitszeiten, Tagesstatus und Wochensummen als Excel-Datei. Offene Buchungen sind gekennzeichnet. Der Export verändert keine erfassten Zeiten oder Pausen.</p>
         <button class="btn-vintage rounded px-4 py-2">Excel herunterladen</button>
+        <a class="inline-block underline text-sm ml-3" href="/admin/export?from=<%= monthFrom %>&to=<%= monthTo %><%= employeeFilter?'&employee_id='+employeeFilter:'' %>">Ausgewählten Monat exportieren</a>
       </form>
     </section>
   </div>

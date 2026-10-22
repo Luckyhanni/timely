@@ -1,0 +1,19 @@
+<% layout('layout',{user}) %>
+<div class="max-w-3xl mx-auto space-y-5">
+  <div><h1 class="text-2xl font-bold">Mein Urlaub</h1><p class="mt-2 text-white/60">Urlaub für <strong><%= user.name %></strong> eintragen. Der Zeitraum ist anschließend auch für den Admin sichtbar.</p></div>
+  <form method="post" action="/leave/save" class="card p-5 timely-form space-y-4">
+    <%- include('_csrf') %>
+    <div class="grid sm:grid-cols-2 gap-3"><label>Von<input type="date" name="from" value="<%= today %>" required></label><label>Bis einschließlich<input type="date" name="to" value="<%= today %>" required></label></div>
+    <details><summary class="text-sm">Notiz hinzufügen (optional)</summary><label class="mt-2">Notiz<textarea name="note" minlength="3" maxlength="500"></textarea></label></details>
+    <p class="text-sm text-white/60">Vorhandene Arbeitszeiten oder andere Abwesenheiten können nicht überschrieben werden. Krankheitstage trägt der Admin ein.</p>
+    <button class="btn-vintage rounded px-4 py-2">Meinen Urlaub eintragen</button>
+  </form>
+  <section class="card p-5 space-y-4">
+    <div class="flex flex-wrap justify-between gap-3"><h2 class="font-semibold">Meine Urlaubszeiträume</h2><form method="get" class="flex gap-2 items-center"><label class="text-sm">Jahr <input class="bg-transparent border border-white/20 rounded px-2 py-1 w-24" type="number" name="year" min="1000" max="9999" value="<%= year %>" required></label><button class="underline text-sm">Anzeigen</button></form></div>
+    <% if(!ranges.length) { %><p class="text-white/60 text-sm">Für <%= year %> ist noch kein Urlaub eingetragen.</p><% } %>
+    <% ranges.forEach(range=>{ %><div class="border-t border-white/10 pt-3 flex flex-wrap justify-between gap-3 items-center"><div><strong><%= dayjs(range.from).format('DD.MM.YYYY') %> – <%= dayjs(range.to).format('DD.MM.YYYY') %></strong><div class="text-sm text-white/50"><%= range.selfEntered?'Selbst eingetragen':'Vom Admin eingetragen' %></div></div>
+      <% if(range.selfEntered && range.from>=today) { %><form method="post" action="/leave/cancel"><%- include('_csrf') %><input type="hidden" name="from" value="<%= range.from %>"><input type="hidden" name="to" value="<%= range.to %>"><button class="border border-white/20 rounded px-3 py-2 text-sm">Zeitraum zurücknehmen</button></form><% } %>
+    </div><% }) %>
+    <p class="text-xs text-white/50">Vergangene oder vom Admin eingetragene Abwesenheiten bitte vom Admin ändern lassen. Urlaubszeiträume werden separat angezeigt; sie erhöhen die geleisteten Arbeitsstunden nicht.</p>
+  </section>
+</div>
