@@ -2,7 +2,7 @@
 
 Timely ist eine kleine Express/EJS-App zur Zeiterfassung. Der produktive Serverbetrieb nutzt PostgreSQL über `DATABASE_URL`.
 
-Live-Adresse: [blank-timely.de/login](https://blank-timely.de/login). Der Server wird bei Render betrieben. Eine abweichende Domain kann über `APP_URL` eingestellt werden; ohne diese Variable verwendet der QR-Ausdruck `https://blank-timely.de`.
+Live-Adresse: [blank-timely.de/login](https://blank-timely.de/login). Der Render-Dienst [Timely](https://dashboard.render.com/web/srv-d409btk9c44c738o0qmg) ist mit `Luckyhanni/timely`, Branch `main`, verbunden. Automatische Veröffentlichung bei neuen Commits ist aktiviert (am 22.10.2026 geprüft). Render baut mit `npm install` und startet mit `node server.js`. Eine abweichende Domain kann über `APP_URL` eingestellt werden; ohne diese Variable verwendet der QR-Ausdruck `https://blank-timely.de`.
 
 ## Setup
 1. Node.js 20 installieren.
@@ -47,7 +47,7 @@ Mitarbeiter verbinden ihr Handy mit dem Betriebs-WLAN, scannen den Code mit der 
 
 Die Ortsprüfung belegt den benutzten Anschluss, keine GPS-Position. Ein VPN ins Betriebsnetz würde ebenfalls zugelassen; deshalb dafür keinen Mitarbeiter-Fernzugang verwenden. Bei einer Änderung der öffentlichen IP-Adresse muss die erlaubte Adresse aktualisiert werden. Bei wechselnden Anschlüssen eine feste IP bzw. einen geeigneten stabilen Zugang mit dem Betreiber einrichten. Der Schalter ist nach der Migration zunächst aus, damit vor Einrichtung des Betriebsanschlusses niemand ausgesperrt wird. Wer keinen nutzbaren WLAN-Zugang hat, kann den Papiercode allein nicht für eine verlässliche Ortsprüfung verwenden.
 
-Schemaänderungen sind additiv und werden beim Start in einer Transaktion ausgeführt. Vor dem Produktivupdate eine Datenbanksicherung erstellen. Ob Render Änderungen aus GitHub automatisch veröffentlicht, muss im verbundenen Render-Service geprüft werden; im Repository ist keine automatische Veröffentlichung konfiguriert. Die Prüf-Workflow-Datei führt Tests und den Demo-Build aus, kein Deployment.
+Schemaänderungen sind additiv und werden beim Start in einer Transaktion ausgeführt. Vor dem Produktivupdate eine Datenbanksicherung erstellen. Die Veröffentlichung wird durch die GitHub-Verknüpfung im Render-Dienst ausgelöst: Ein Commit auf `main` startet automatisch Build und Deployment. Ein Pull Request auf einem anderen Branch veröffentlicht die Änderungen noch nicht live. Die Prüf-Workflow-Datei führt Tests und den Demo-Build aus, kein Deployment. Im verbundenen Render-Arbeitsbereich ist keine Render-PostgreSQL-Instanz sichtbar; eine vorhandene externe Datenbank wird weiterhin über `DATABASE_URL` angebunden.
 
 ## Prüfungen
 
