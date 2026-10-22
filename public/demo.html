@@ -19,7 +19,7 @@
     }
     body { font-family: 'Raleway', sans-serif; color: var(--ink); background: var(--bg); }
     .brand-title { font-family: 'Playfair Display', serif; letter-spacing: .5px; }
-    .demo-card { background-color: var(--card); border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03); }
+    .demo-card, .card { background-color: var(--card); border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.03); }
     .btn-vintage { background: linear-gradient(180deg,var(--accent),#b48c4d); color: #1b1d23; }
     .btn-rose { background: linear-gradient(180deg,var(--accent-2),#5f1515); color: #fff; }
     .table-head { background: rgba(255,255,255,.04); color: #e9e6df; }
@@ -51,7 +51,7 @@
       </div>
     </aside>
 
-    <main class="flex-1 p-4 md:p-6 lg:p-8">
+    <main class="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
       <div class="max-w-6xl mx-auto">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
           <div>
@@ -109,7 +109,9 @@
           </div>
         </section>
 
-        <section id="adminView" class="view hidden grid lg:grid-cols-2 gap-6">
+        <section id="adminView" class="view hidden space-y-6">
+          <div id="demoWeek"></div>
+          <div class="grid lg:grid-cols-2 gap-6">
           <div class="demo-card p-6">
             <h2 class="font-semibold mb-4">Beispiel-Mitarbeiter</h2>
             <form id="addEmployeeForm" class="flex flex-wrap gap-2 mb-4">
@@ -122,9 +124,12 @@
             <div id="employeeRows" class="space-y-2"></div>
           </div>
           <div class="demo-card p-6">
+            <h2 class="font-semibold mb-3">QR-Code vor Ort</h2>
+            <p class="text-white/60 text-sm mb-5">In der Serverversion: ausgedruckten QR-Code im Betriebs-WLAN scannen und Buchung bestätigen. Die öffentliche Demo prüft keinen Standort.</p>
             <h2 class="font-semibold mb-3">Excel Export</h2>
             <p class="text-white/60 text-sm mb-4">In der öffentlichen Demo deaktiviert.</p>
             <button disabled class="rounded px-4 py-2 bg-white/10 text-white/40 cursor-not-allowed">Exportieren</button>
+          </div>
           </div>
         </section>
       </div>

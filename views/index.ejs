@@ -1,5 +1,7 @@
 <% layout('layout',{user}) %>
-<div class="max-w-6xl mx-auto">
+<div class="max-w-6xl mx-auto" data-tracker>
+  <% if(open.length) { %><p class="rounded border border-red-300/40 p-3 mb-4">Noch offene Buchung vom <%= open.map(e=>dayjs(e.date).format('DD.MM.YYYY')).join(', ') %>. Bitte den Admin um Korrektur bitten.</p><% } %>
+  <% if(onsiteRequired) { %><p class="rounded border border-amber-200/30 p-3 mb-4"><%= onsiteReady?'QR-Code erkannt. Jetzt eine Buchung bestätigen.':'Zum Buchen: Betriebs-WLAN verbinden und ausgedruckten QR-Code scannen.' %> Für jede Buchung ist ein neuer Scan nötig.</p><% } %>
   <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
     <h1 class="text-2xl md:text-3xl font-bold">Willkommen zurück, <%= user.name %>! 👋</h1>
     <div class="text-slate-400 hidden sm:block"><%= now.format('dddd, DD. MMMM YYYY') %></div>
@@ -20,16 +22,16 @@
         </div>
         <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <% if (!checkedIn) { %>
-            <form method="post" action="/action/checkin"><button class="btn-vintage rounded px-4 py-2 w-full sm:w-auto">Einchecken</button></form>
+            <form method="post" action="/action/checkin"><%- include('_csrf') %><button <%= onsiteRequired&&!onsiteReady?'disabled':'' %> class="btn-vintage rounded px-4 py-2 w-full sm:w-auto">Einchecken</button></form>
           <% } %>
           <% if (checkedIn && !checkedOut && !onBreak) { %>
-            <form method="post" action="/action/break/start"><button class="btn-rose rounded px-4 py-2 w-full sm:w-auto">Pause starten</button></form>
+            <form method="post" action="/action/break-start"><%- include('_csrf') %><button <%= onsiteRequired&&!onsiteReady?'disabled':'' %> class="btn-rose rounded px-4 py-2 w-full sm:w-auto">Pause starten</button></form>
           <% } %>
           <% if (checkedIn && !checkedOut && onBreak) { %>
-            <form method="post" action="/action/break/end"><button class="btn-rose rounded px-4 py-2 w-full sm:w-auto">Pause beenden</button></form>
+            <form method="post" action="/action/break-end"><%- include('_csrf') %><button <%= onsiteRequired&&!onsiteReady?'disabled':'' %> class="btn-rose rounded px-4 py-2 w-full sm:w-auto">Pause beenden</button></form>
           <% } %>
           <% if (checkedIn && !checkedOut) { %>
-            <form method="post" action="/action/checkout"><button class="rounded px-4 py-2 bg-white/10 hover:bg-white/15 w-full sm:w-auto">Auschecken</button></form>
+            <form method="post" action="/action/checkout"><%- include('_csrf') %><button <%= onsiteRequired&&!onsiteReady?'disabled':'' %> class="rounded px-4 py-2 bg-white/10 hover:bg-white/15 w-full sm:w-auto">Auschecken</button></form>
           <% } %>
           <% if (checkedOut) { %>
             <div class="text-slate-400">Du hast heute bereits ausgecheckt!</div>

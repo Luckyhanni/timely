@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Timely · QR-Code drucken</title>
+  <style>
+    body{font-family:Arial,sans-serif;color:#111;background:white;text-align:center;margin:2rem auto;padding:1rem;max-width:700px;line-height:1.6}
+    img{display:block;width:100mm;max-width:100%;height:auto;margin:1rem auto} h1{font-size:1.8rem} p{font-size:1.05rem}
+    button,a{display:inline-block;margin:.5rem;padding:.7rem 1rem}button{cursor:pointer} .inactive{font-weight:bold;color:#a00}
+    @page{size:A4;margin:20mm} @media print{body{padding:0;margin:0;max-width:none}.no-print{display:none}}
+  </style>
+</head><body>
+  <div class="no-print"><button onclick="window.print()">Ausdruck drucken</button><a href="/admin">Zur Verwaltung</a></div>
+  <h1>Timely · Hier Zeit buchen</h1>
+  <% if(!enabled) { %><p class="inactive">NOCH NICHT AKTIV · Einrichtung noch abschließen</p><% } %>
+  <img src="<%= qrImage %>" alt="QR-Code zur Vor-Ort-Buchung">
+  <p>1. Mit dem Betriebs-WLAN verbinden.<br>2. QR-Code mit der Handykamera scannen.<br>3. Mit Name und PIN anmelden.<br>4. Einchecken, Auschecken oder Pause bestätigen.</p>
+  <p>Für jede Buchung erneut scannen.<br>Die Buchung innerhalb von 2 Minuten bestätigen.</p>
+</body></html>
