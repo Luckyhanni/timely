@@ -357,9 +357,9 @@ function renderDemoWeek() {
       <form id="demoEntryForm" class="demo-card p-6 timely-form space-y-3">
         <h2 class="font-semibold">Zeit korrigieren</h2>
         <label>Mitarbeiter<select name="employee_id">${employeeOptions}</select></label>
-        <label>Tag<input name="date" type="date" value="${editorDate}" required></label>
-        <label>Beginn<input name="check_in" type="datetime-local" value="${entry?.check_in?localDateTime(entry.check_in):editorDate+'T07:00'}" required></label>
-        <label>Ende<input name="check_out" type="datetime-local" value="${entry?.check_out?localDateTime(entry.check_out):''}"></label>
+        <input name="date" type="hidden" value="${editorDate}"><p class="text-sm text-white/60">${formatDate(editorDate)} · Tag in der Wochenübersicht auswählen. Beginn und Ende gehören zu diesem Tag.</p>
+        <label>Beginn<input name="check_in" type="time" value="${entry?.check_in?localDateTime(entry.check_in).slice(11):'07:00'}" required></label>
+        <label>Ende<input name="check_out" type="time" value="${entry?.check_out?localDateTime(entry.check_out).slice(11):''}"></label>
         <label>Pausen gesamt (Minuten, leer = erfasste Pausen)<input name="pause" type="number" min="0" value="${entry?.break_minutes_override??''}"></label>
         <label>Grund<input name="reason" required minlength="3" maxlength="500"></label><button class="btn-vintage rounded px-4 py-2">Zeit speichern</button>
       </form>
@@ -395,7 +395,7 @@ document.getElementById('demoWeek').addEventListener('submit',event=>{
   event.preventDefault();const form=event.target,values=Object.fromEntries(new FormData(form)),employeeId=+values.employee_id;
   try {
     if(form.id==='demoEntryForm') {
-      const start=fromLocal(values.check_in),end=values.check_out?fromLocal(values.check_out):null;
+      const start=fromLocal(values.date+'T'+values.check_in),end=values.check_out?fromLocal(values.date+'T'+values.check_out):null;
       if(dateKey(start)!==values.date || new Date(start)>new Date() || (end&&(new Date(end)<=new Date(start)||new Date(end)>new Date()||new Date(end)-new Date(start)>86400000))) throw new Error('Bitte Datum und Reihenfolge der Zeiten prüfen.');
       const status=state.data.statuses.find(s=>s.employee_id===employeeId&&s.date===values.date);
       if(status&&status.status!=='work') throw new Error('Bitte zuerst den Tagesstatus entfernen oder auf Arbeitstag setzen.');

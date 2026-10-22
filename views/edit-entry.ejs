@@ -11,10 +11,11 @@
     <input type="hidden" name="id" value="<%= entry?.id || '' %>">
     <input type="hidden" name="revision" value="<%= entry?.revision ?? '' %>">
     <div class="grid sm:grid-cols-2 gap-4">
-      <label>Beginn<input type="datetime-local" name="check_in" required value="<%= entry?.check_in ? dayjs(entry.check_in).tz(TZ).format('YYYY-MM-DDTHH:mm') : date+'T07:00' %>"></label>
-      <label>Ende<input type="datetime-local" name="check_out" value="<%= entry?.check_out ? dayjs(entry.check_out).tz(TZ).format('YYYY-MM-DDTHH:mm') : '' %>"></label>
+      <label>Beginn<input type="time" name="check_in" required value="<%= entry?.check_in ? dayjs(entry.check_in).tz(TZ).format('HH:mm') : '07:00' %>"></label>
+      <label>Ende<input type="time" name="check_out" value="<%= entry?.check_out ? dayjs(entry.check_out).tz(TZ).format('HH:mm') : '' %>"></label>
     </div>
-    <p class="text-sm text-white/60">Bei einem vergessenen Check-out das tatsächliche Ende eintragen. Ein leeres Ende lässt den Arbeitstag offen.</p>
+    <p class="text-sm text-white/60">Beginn und Ende gehören zum <%= dayjs(date).format('DD.MM.YYYY') %>. Nur die Uhrzeiten einstellen. Ein leeres Ende lässt den Arbeitstag offen.</p>
+    <% if(entry?.check_out && dayjs(entry.check_out).tz(TZ).format('YYYY-MM-DD')!==date) { %><p class="text-sm text-amber-200">Diese Altbuchung wurde ausnahmsweise bis zum Folgetag ergänzt. Eine neue manuelle Korrektur verwendet den angezeigten Beginn-Tag.</p><% } %>
     <label>Pausen gesamt (Minuten, optional)<input name="break_minutes" type="number" min="0" max="1440" value="<%= entry?.break_minutes_override ?? '' %>" placeholder="Leer = erfasste Pausen verwenden"></label>
     <% if(pauses.length) { %>
       <div class="text-sm text-white/70">Erfasste Pausen:
