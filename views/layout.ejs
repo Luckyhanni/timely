@@ -76,7 +76,7 @@ option:hover, option:checked { background:#2c2c2c; color:#fff; }
       <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/history">Meine Historie</a>
       <% if (user && user.is_admin) { %>
         <div class="mt-4 text-[10px] uppercase text-white/40 px-3 tracking-widest">Admin</div>
-        <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/admin">Export & Mitarbeiter</a>
+        <a class="block px-3 py-2 rounded hover:bg-white/5 text-white/70" href="/admin">Team & Wochenübersicht</a>
       <% } %>
     </nav>
 
@@ -94,6 +94,7 @@ option:hover, option:checked { background:#2c2c2c; color:#fff; }
     <div class="lg:hidden text-white/70 text-sm mb-3">
       <% if (user) { %>Angemeldet: <strong><%= user.name %></strong> – <a class="underline" href="/logout">Abmelden</a><% } %>
     </div>
+    <% if(typeof flash!=='undefined' && flash) { %><div role="status" class="rounded border border-amber-200/30 bg-amber-200/10 p-3 mb-5"><%= flash %></div><% } %>
     <%- body %>
   </main>
   </div>
@@ -113,14 +114,15 @@ option:hover, option:checked { background:#2c2c2c; color:#fff; }
 
     // Live-Uhr + Auto-Refresh (wie bisher)
     function updateClock(){
-      const t=new Date(), pad=n=>n.toString().padStart(2,'0');
-      const time=`${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
-      const date=t.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+      const t=new Date();
+      const time=t.toLocaleTimeString('de-DE',{timeZone:'Europe/Berlin'});
+      const date=t.toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',weekday:'long',day:'2-digit',month:'long',year:'numeric'});
       const te=document.getElementById('clock-time'), de=document.getElementById('clock-date');
       if(te) te.textContent=time; if(de) de.textContent=date.charAt(0).toUpperCase()+date.slice(1);
     }
     updateClock(); setInterval(updateClock,1000);
-    setInterval(()=>{ if(!document.hidden) location.reload(); },30000);
+    // Never interrupt a time correction or other form being filled out.
+    setInterval(()=>{ if(document.querySelector('[data-tracker]') && !document.hidden && !document.querySelector('input:focus,textarea:focus,select:focus')) location.reload(); },30000);
   </script>
 </body>
 </html>

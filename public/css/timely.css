@@ -26,3 +26,21 @@
     color: #000 !important;
   }
 }
+/* Shared administration forms and compact weekly overview. */
+.timely-form label { display:block; font-size:.875rem; }
+.timely-form input:not([type=checkbox]):not([type=hidden]), .timely-form select, .timely-form textarea {
+  display:block; width:100%; margin-top:.35rem; padding:.6rem .75rem; color:#f7f5f0; background:#111216; border:1px solid #ffffff30; border-radius:.5rem;
+}
+.timely-form input:focus, .timely-form select:focus, .timely-form textarea:focus { outline:2px solid #c5a268; outline-offset:2px; }
+.timely-form input[type=checkbox] { margin-right:.4rem; }
+.week-table { width:100%; min-width:1050px; font-size:.8rem; border-collapse:collapse; }
+.week-table th, .week-table td { padding:.8rem; text-align:left; vertical-align:top; border-bottom:1px solid #ffffff12; }
+.week-table th { color:#c5a268; }
+.week-table .day-link { display:block; min-height:3rem; }
+.week-table .day-link:hover { background:#ffffff0c; outline:1px solid #c5a268; border-radius:.25rem; }
+.week-table td:first-child { min-width:140px; }
+.status-pill { display:inline-block; font-size:.7rem; padding:.2rem .4rem; border-radius:.35rem; background:#ffffff10; }
+.status-sick { background:#9f303033; color:#ffb3b3; }
+.status-open { color:#f4cc83; }
+button:disabled { opacity:.45; cursor:not-allowed; }
+summary { cursor:pointer; }

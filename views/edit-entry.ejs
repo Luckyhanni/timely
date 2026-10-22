@@ -1,0 +1,28 @@
+<% layout('layout',{user}) %>
+<div class="max-w-2xl mx-auto">
+  <a class="underline text-sm" href="/admin?week=<%= week %>">← Wochenübersicht</a>
+  <h1 class="text-2xl font-bold mt-4">Zeit korrigieren · <%= employee.name %></h1>
+  <p class="text-white/60 mt-1 mb-5"><%= dayjs(date).format('DD.MM.YYYY') %> · Alle Eingaben in deutscher Ortszeit.</p>
+  <form class="card p-6 space-y-4 timely-form" method="post" action="/admin/entries/save">
+    <%- include('_csrf') %>
+    <input type="hidden" name="employee_id" value="<%= employee.id %>">
+    <input type="hidden" name="date" value="<%= date %>">
+    <input type="hidden" name="week" value="<%= week %>">
+    <input type="hidden" name="id" value="<%= entry?.id || '' %>">
+    <input type="hidden" name="revision" value="<%= entry?.revision ?? '' %>">
+    <div class="grid sm:grid-cols-2 gap-4">
+      <label>Beginn<input type="datetime-local" name="check_in" required value="<%= entry?.check_in ? dayjs(entry.check_in).tz(TZ).format('YYYY-MM-DDTHH:mm') : date+'T07:00' %>"></label>
+      <label>Ende<input type="datetime-local" name="check_out" value="<%= entry?.check_out ? dayjs(entry.check_out).tz(TZ).format('YYYY-MM-DDTHH:mm') : '' %>"></label>
+    </div>
+    <p class="text-sm text-white/60">Bei einem vergessenen Check-out das tatsächliche Ende eintragen. Ein leeres Ende lässt den Arbeitstag offen.</p>
+    <label>Pausen gesamt (Minuten, optional)<input name="break_minutes" type="number" min="0" max="1440" value="<%= entry?.break_minutes_override ?? '' %>" placeholder="Leer = erfasste Pausen verwenden"></label>
+    <% if(pauses.length) { %>
+      <div class="text-sm text-white/70">Erfasste Pausen:
+        <% pauses.forEach(b=>{ %><div><%= dayjs(b.start).tz(TZ).format('HH:mm') %> – <%= b.end?dayjs(b.end).tz(TZ).format('HH:mm'):'offen (wird am neuen Ende geschlossen)' %></div><% }) %>
+      </div>
+    <% } %>
+    <label>Grund der Korrektur<textarea name="reason" required minlength="3" maxlength="500" placeholder="Zum Beispiel: Auschecken vergessen, Ende mit Mitarbeiter geklärt."></textarea></label>
+    <p class="text-sm text-white/60">Vorheriger und neuer Stand werden mit deinem Namen und Zeitpunkt gespeichert. Gleichzeitige Änderungen werden erkannt.</p>
+    <button class="btn-vintage rounded px-4 py-2">Korrektur speichern</button>
+  </form>
+</div>

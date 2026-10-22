@@ -1,0 +1,8 @@
+<% layout('layout',{user:typeof user==='undefined'?null:user}) %>
+<div class="card p-6 max-w-xl mx-auto">
+  <h1 class="text-xl font-bold mb-3">Bitte prüfen</h1>
+  <p><%= message %></p>
+  <a class="inline-block underline mt-5" href="/">Zur Zeiterfassung</a>
+  <% if(typeof user!=='undefined' && user?.is_admin) { %><a class="inline-block underline ml-4" href="/admin">Zur Verwaltung</a><% } %>
+  <button type="button" onclick="history.back()" class="btn-vintage rounded px-4 py-2 ml-4">Zurück zur Eingabe</button>
+</div>

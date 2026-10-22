@@ -1,137 +1,130 @@
-<% layout('layout', { user }) %>
-
-<h1 class="text-2xl font-bold mb-6">Admin</h1>
-
-<div class="grid lg:grid-cols-2 gap-6">
-  <!-- Mitarbeiter -->
-  <div class="card p-6 min-w-0">
-    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-      <h2 class="font-semibold">Mitarbeiter</h2>
-      <form method="post" action="/admin/employees/add" class="hidden sm:flex flex-wrap items-center gap-2">
-        <input class="bg-transparent border border-white/15 rounded px-2 py-1 text-white placeholder-white/40"
-               name="name" placeholder="Name" required/>
-        <input class="bg-transparent border border-white/15 rounded px-2 py-1 text-white placeholder-white/40"
-               name="pin" placeholder="PIN" minlength="4" maxlength="6" required/>
-        <label class="text-sm flex items-center gap-1 select-none">
-          <input type="checkbox" name="is_admin" class="accent-[#c5a268]"> Admin
-        </label>
-        <button class="btn-vintage rounded px-3 py-1 w-full sm:w-auto">Hinzufügen</button>
-      </form>
-    </div>
-
-    <!-- Mobile Add-Form -->
-    <form method="post" action="/admin/employees/add" class="sm:hidden space-y-2 mb-4">
-      <input class="w-full bg-transparent border border-white/15 rounded px-3 py-2 text-white placeholder-white/40"
-             name="name" placeholder="Name" required/>
-      <div class="flex gap-2">
-        <input class="flex-1 bg-transparent border border-white/15 rounded px-3 py-2 text-white placeholder-white/40"
-               name="pin" placeholder="PIN" minlength="4" maxlength="6" required/>
-        <label class="text-sm flex items-center gap-2 px-2">
-          <input type="checkbox" name="is_admin" class="accent-[#c5a268]"> Admin
-        </label>
-      </div>
-      <button class="btn-vintage w-full rounded px-3 py-2 w-full sm:w-auto">Hinzufügen</button>
+<% layout('layout',{user}) %>
+<div class="max-w-screen-2xl mx-auto space-y-6">
+  <div class="flex flex-wrap justify-between items-end gap-4">
+    <div><div class="text-sm text-white/50">Verwaltung</div><h1 class="text-2xl md:text-3xl font-bold">Team & Wochenübersicht</h1></div>
+    <form method="get" class="timely-form flex flex-wrap items-end gap-2">
+      <label>Woche wählen<input type="date" name="week" value="<%= week %>" required></label>
+      <button class="btn-vintage px-4 py-2 rounded">Anzeigen</button>
     </form>
-
-    <div class="overflow-x-auto -mx-4 sm:mx-0">
-      <table class="min-w-[640px] text-sm">
-        <thead>
-          <tr class="table-head text-left">
-            <th class="px-4 py-2">Name</th>
-            <th class="px-4 py-2">Rolle</th>
-            <th class="px-4 py-2 w-52">Aktionen</th>
-          </tr>
-        </thead>
+  </div>
+  <div class="grid sm:grid-cols-3 gap-3">
+    <div class="card p-4"><div class="text-white/60 text-sm">Abgeschlossene Arbeitszeit</div><div class="text-2xl font-bold mt-2"><%= duration(rows.reduce((sum,r)=>sum+r.minutes,0)) %></div><div class="text-xs text-white/50">Netto · ausgewählte Woche</div></div>
+    <div class="card p-4"><div class="text-white/60 text-sm">Krankheitstage</div><div class="text-2xl font-bold mt-2"><%= rows.reduce((sum,r)=>sum+r.sick,0) %></div><div class="text-xs text-white/50">Nur erfasste Krankheit an geplanten Arbeitstagen</div></div>
+    <div class="card p-4"><div class="text-white/60 text-sm">Offene Buchungen insgesamt</div><div class="text-2xl font-bold mt-2 status-open"><%= open.length %></div><a class="text-xs underline" href="#offene-buchungen">Prüfen und korrigieren</a></div>
+  </div>
+  <section class="card p-4 md:p-6">
+    <div class="flex flex-wrap justify-between gap-3 mb-4">
+      <h2 class="font-semibold"><%= weekTitle %> · <%= dayjs(week).format('DD.MM.') %> bis <%= dayjs(to).format('DD.MM.YYYY') %></h2>
+      <div class="flex gap-4 text-sm"><a class="underline" href="?week=<%= previous %>">← Vorige</a><a class="underline" href="/admin">Diese Woche</a><a class="underline" href="?week=<%= next %>">Nächste →</a></div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="week-table">
+        <thead><tr><th>Mitarbeiter</th><% days.forEach((date,i)=>{ %><th><%= ['Mo','Di','Mi','Do','Fr','Sa','So'][i] %><br><%= dayjs(date).format('DD.MM.') %></th><% }) %><th>Woche</th><th>Krank<br>Woche / <%= year %></th></tr></thead>
         <tbody>
-          <% employees.forEach(e => { %>
-          <tr class="table-row">
-            <td class="px-4 py-2"><%= e.name %></td>
-            <td class="px-4 py-2">
-              <% if (e.is_admin) { %>
-                <span class="inline-flex items-center text-xs bg-white/10 rounded px-2 py-1">Admin</span>
-              <% } else { %>
-                <span class="inline-flex items-center text-xs bg-white/10 rounded px-2 py-1">Mitarbeiter</span>
-              <% } %>
-            </td>
-            <td class="px-4 py-2">
-              <div class="flex flex-wrap gap-2">
-                <button class="px-3 py-1 rounded btn-vintage w-full sm:w-auto"
-                        onclick='openEdit(<%- JSON.stringify({id:e.id,name:e.name,is_admin:e.is_admin}) %>)'>
-                  Bearbeiten
-                </button>
-                <form method="post" action="/admin/employees/delete"
-                      onsubmit="return confirm('Wirklich löschen?');">
-                  <input type="hidden" name="id" value="<%= e.id %>"/>
-                  <button class="px-3 py-1 rounded btn-rose w-full sm:w-auto">Löschen</button>
-                </form>
-              </div>
-            </td>
-          </tr>
-          <% }) %>
+          <% rows.forEach(row=>{ %><tr>
+            <td><strong><%= row.employee.name %></strong><div class="text-white/50 text-xs mt-1"><%= profiles[row.employee.schedule_profile] %></div><% if(!row.employee.active){ %><span class="status-pill">Inaktiv</span><% } %></td>
+            <% row.cells.forEach(cell=>{ %><td>
+              <a class="day-link" href="/admin/entries/edit?employee_id=<%= row.employee.id %>&date=<%= cell.date %>" aria-label="Zeit von <%= row.employee.name %> am <%= cell.date %> bearbeiten">
+                <% if(cell.status) { %><span class="status-pill <%= cell.status.status==='sick'?'status-sick':'' %>"><%= statusLabels[cell.status.status] %><%= cell.sick?' · zählt':'' %></span><% } %>
+                <% if(cell.entries.some(e=>e.check_out)) { %><strong class="block"><%= duration(cell.closedMinutes) %></strong><% } %>
+                <% if(cell.open) { %><div class="status-open">Offen · prüfen</div><% } %>
+                <% if(!cell.status && !cell.entries.some(e=>e.check_in)) { %><span class="text-white/50"><%= ({work:'—',off:'Frei',school:'Berufsschule',flexible:'Flexibel',unassigned:'Plan fehlt',calendar_missing:'Ferien prüfen'})[cell.planned] %></span><% } %>
+              </a>
+              <% cell.entries.filter(e=>e.check_in).forEach(entry=>{ %><a class="block text-xs text-white/60 underline mt-1" href="/admin/entries/edit?employee_id=<%= row.employee.id %>&date=<%= cell.date %>&id=<%= entry.id %>"><%= dayjs(entry.check_in).tz(TZ).format('HH:mm') %> – <%= entry.check_out?dayjs(entry.check_out).tz(TZ).format('HH:mm'):'offen' %></a><% }) %>
+            </td><% }) %>
+            <td class="font-bold"><%= duration(row.minutes) %></td><td><%= row.employee.schedule_profile==='casual'?'—':row.sick+' / '+row.yearSick %></td>
+          </tr><% }) %>
+          <% if(!rows.length) { %><tr><td colspan="10">Noch keine Mitarbeiter angelegt.</td></tr><% } %>
         </tbody>
       </table>
     </div>
+    <p class="text-xs text-white/50 mt-4">Tag anklicken, um Zeiten zu ergänzen oder zu korrigieren. Offene Buchungen zählen erst nach dem Abschluss zur Summe. Fehlende Buchungen sind keine Krankheitstage. Berufsschulstunden werden nicht pauschal als Arbeitsstunden gutgeschrieben.</p>
+  </section>
+  <section class="card p-6" id="offene-buchungen">
+    <h2 class="font-semibold mb-3">Offene Buchungen</h2>
+    <% if(!open.length) { %><p class="text-white/60 text-sm">Alle begonnenen Arbeitstage sind abgeschlossen.</p><% } %>
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3"><% open.forEach(entry=>{ %>
+      <a class="border border-amber-200/20 rounded p-3 hover:bg-white/5" href="/admin/entries/edit?employee_id=<%= entry.employee_id %>&date=<%= entry.date %>&id=<%= entry.id %>">
+        <strong><%= entry.name %></strong><div class="text-sm text-white/60"><%= dayjs(entry.date).format('DD.MM.YYYY') %> · seit <%= dayjs(entry.check_in).tz(TZ).format('HH:mm') %></div><div class="text-sm status-open mt-1"><%= entry.date<new Date().toLocaleDateString('en-CA',{timeZone:TZ})?'Check-out fehlt · korrigieren':'Heute eingecheckt · bearbeiten' %> →</div>
+      </a>
+    <% }) %></div>
+  </section>
+  <div class="grid xl:grid-cols-2 gap-6">
+    <section class="card p-6">
+      <h2 class="font-semibold mb-4">Krankheit, Urlaub & Tagesplan</h2>
+      <form action="/admin/days/save" method="post" class="timely-form space-y-3">
+        <%- include('_csrf') %><input name="week" type="hidden" value="<%= week %>">
+        <label>Mitarbeiter<select name="employee_id" required><% employees.forEach(e=>{ %><option value="<%= e.id %>"><%= e.name %></option><% }) %></select></label>
+        <div class="grid sm:grid-cols-2 gap-3"><label>Von<input name="from" type="date" value="<%= week %>" required></label><label>Bis<input name="to" type="date" value="<%= to %>" required></label></div>
+        <label>Status<select name="status"><% Object.entries(statusLabels).forEach(([key,label])=>{ %><option value="<%= key %>"><%= label %></option><% }) %><option value="clear">Eintrag entfernen · regulären Plan verwenden</option></select></label>
+        <label>Abweichender Arbeitsplan für diesen Zeitraum<select name="planned_override"><option value="">Regulären Arbeitsplan verwenden</option><option value="work">Arbeitstage (z. B. Schule fällt aus)</option><option value="school">Berufsschule</option><option value="off">Frei / Feiertag</option></select></label>
+        <label>Grund<textarea name="reason" required minlength="3" maxlength="500" placeholder="Zum Beispiel: Krankmeldung vom Mitarbeiter erhalten."></textarea></label>
+        <p class="text-xs text-white/60">Sebastian, Andi und David: Mo–Fr. Babette: Di–Sa. Theo: Mo–Fr, mittwochs Berufsschule außer in den Ferien. Aushilfen: keine Krankheitstage. Schulferien sind bis Sommer 2030 hinterlegt; schulische Abweichungen und arbeitsfreie Feiertage hier ausdrücklich eintragen. Eine Krankmeldung wird gespeichert, an freien oder Schultagen aber nicht als Krankheitstag gezählt.</p>
+        <button class="btn-vintage rounded px-4 py-2">Status speichern</button>
+      </form>
+    </section>
+    <section class="card p-6">
+      <h2 class="font-semibold mb-4">Excel-Export</h2>
+      <form method="get" action="/admin/export" class="timely-form space-y-3">
+        <div class="grid sm:grid-cols-2 gap-3"><label>Von<input type="date" name="from" value="<%= week %>" required></label><label>Bis<input type="date" name="to" value="<%= to %>" required></label></div>
+        <p class="text-sm text-white/60">Arbeitszeiten, Tagesstatus und Wochensummen als Excel-Datei. Offene Buchungen sind gekennzeichnet. Der Export verändert keine erfassten Zeiten oder Pausen.</p>
+        <button class="btn-vintage rounded px-4 py-2">Excel herunterladen</button>
+      </form>
+    </section>
   </div>
-
-  <!-- Export -->
-  <div class="card p-6 min-w-0">
-    <h2 class="font-semibold mb-3">Excel Export</h2>
-    <form method="get" action="/admin/export" class="flex flex-wrap gap-3 items-end">
+  <section class="card p-6">
+    <h2 class="font-semibold mb-4">Mitarbeiter & Arbeitspläne</h2>
+    <div class="grid lg:grid-cols-2 gap-3"><% employees.forEach(employee=>{ %>
+      <details class="border border-white/10 rounded p-3"><summary><strong><%= employee.name %></strong> · <%= employee.is_admin?'Admin':'Mitarbeiter' %><%= employee.active?'':' · Inaktiv' %><div class="text-xs text-white/50 mt-1"><%= profiles[employee.schedule_profile] %></div></summary>
+        <form method="post" action="/admin/employees/update" class="timely-form mt-4 space-y-3">
+          <%- include('_csrf') %><input type="hidden" name="id" value="<%= employee.id %>"><input type="hidden" name="week" value="<%= week %>">
+          <label>Name<input name="name" value="<%= employee.name %>" required maxlength="100"></label>
+          <label>Neue PIN · leer lassen zum Beibehalten<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" minlength="4" maxlength="6" autocomplete="new-password"></label>
+          <label>Arbeitsplan<select name="schedule_profile"><% Object.entries(profiles).forEach(([key,label])=>{ %><option value="<%= key %>" <%= employee.schedule_profile===key?'selected':'' %>><%= label %></option><% }) %></select></label>
+          <label><input type="checkbox" name="is_admin" <%= employee.is_admin?'checked':'' %>>Admin</label>
+          <label><input type="checkbox" name="active" <%= employee.active?'checked':'' %>>Konto aktiv · bei Austritt deaktivieren, Zeiten bleiben erhalten</label>
+          <label>Grund<input name="reason" required minlength="3" maxlength="500" placeholder="Zum Beispiel: Arbeitsplan festgelegt."></label>
+          <button class="btn-vintage rounded px-4 py-2">Mitarbeiter speichern</button>
+        </form>
+      </details>
+    <% }) %></div>
+    <details class="mt-4 border border-white/10 rounded p-3"><summary>Mitarbeiter hinzufügen</summary>
+      <form method="post" action="/admin/employees/add" class="timely-form mt-4 grid sm:grid-cols-2 gap-3">
+        <%- include('_csrf') %><input type="hidden" name="week" value="<%= week %>">
+        <label>Name<input name="name" required maxlength="100"></label><label>PIN (4–6 Ziffern)<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,6}" required autocomplete="new-password"></label>
+        <label>Arbeitsplan<select name="schedule_profile"><option value="">Anhand des Namens zuordnen</option><% Object.entries(profiles).forEach(([key,label])=>{ %><option value="<%= key %>"><%= label %></option><% }) %></select></label>
+        <label class="self-center"><input type="checkbox" name="is_admin">Admin</label><button class="btn-vintage rounded px-4 py-2">Hinzufügen</button>
+      </form>
+    </details>
+    <p class="text-xs text-white/50 mt-4">Arbeitspläne werden bei bestehenden Mitarbeitern einmalig anhand des Vornamens zugeordnet. Bitte Zuordnung vor der Nutzung prüfen. Planänderungen gelten auch für die Auswertung bereits gespeicherter Krankmeldungen.</p>
+  </section>
+  <section class="card p-6">
+    <h2 class="font-semibold mb-4">Vor Ort per QR-Code buchen <span class="status-pill"><%= onsiteConfig.enabled?'Aktiv':'Noch nicht aktiviert' %></span></h2>
+    <div class="grid lg:grid-cols-2 gap-6">
+      <form method="post" action="/admin/onsite" class="timely-form space-y-3">
+        <%- include('_csrf') %><input type="hidden" name="week" value="<%= week %>">
+        <p class="text-sm text-white/60">Mitarbeiter verbinden sich mit dem Betriebs-WLAN, scannen den Ausdruck und bestätigen mit ihrem Konto eine Buchung innerhalb von 2 Minuten. Für die nächste Buchung erneut scannen. Der Server prüft bei jeder Buchung den erlaubten Anschluss, auch bei Pausen. Eine Konto-Anmeldung zum Nachsehen bleibt von unterwegs möglich.</p>
+        <p class="text-sm">Dein aktuell erkannter Anschluss: <strong><%= ip %></strong><br><span class="text-white/50 text-xs">Nur übernehmen, wenn du gerade im Betriebs-WLAN bist.</span></p>
+        <label>Erlaubte öffentliche IP-Adressen / Netze des Betriebs<textarea name="networks" rows="3" placeholder="Eine Adresse je Zeile"><%= onsiteConfig.networks %></textarea></label>
+        <% if(!qrUrl) { %><p class="text-sm status-open">Vor der Aktivierung muss die öffentliche App-Adresse am Server als APP_URL eingerichtet werden. Bei einem vorgeschalteten Hosting-Proxy muss außerdem die Erkennung der Anschlussadresse stimmen.</p><% } %>
+        <label><input type="checkbox" name="enabled" <%= onsiteConfig.enabled?'checked':'' %>>Vor-Ort-Buchung verpflichtend aktivieren</label>
+        <label><input type="checkbox" name="rotate">Neuen QR-Code erzeugen · alter Ausdruck wird ungültig</label>
+        <label>Grund<input name="reason" required minlength="3" maxlength="500" placeholder="Zum Beispiel: Betriebsanschluss eingerichtet."></label>
+        <button class="btn-vintage rounded px-4 py-2">Vor-Ort-Einstellung speichern</button>
+      </form>
       <div>
-        <label class="block text-sm mb-1">Von</label>
-        <input type="date" name="from" class="bg-transparent border border-white/15 rounded px-2 py-1 text-white" required/>
+        <% if(qrImage) { %><div class="qr-sheet bg-white text-black p-6 rounded text-center">
+          <h3 class="text-2xl font-bold">Timely · Hier Zeit buchen</h3><% if(!onsiteConfig.enabled) { %><p class="font-bold mt-2">NOCH NICHT AKTIV</p><% } %>
+          <img class="w-64 max-w-full mx-auto my-3" src="<%= qrImage %>" alt="QR-Code zur Vor-Ort-Buchung">
+          <p>1. Mit dem Betriebs-WLAN verbinden.<br>2. QR-Code mit der Handykamera scannen.<br>3. Mit Name und PIN anmelden.<br>4. Einchecken, Auschecken oder Pause bestätigen.</p>
+          <p class="text-sm mt-3">Für jede Buchung erneut scannen.</p>
+        </div><a href="/admin/qr" target="_blank" rel="noopener" class="inline-block btn-vintage rounded px-4 py-2 mt-3">QR-Code drucken</a><% } %>
+        <p class="text-xs text-white/50 mt-4">Ein Papiercode kann kopiert werden. Der Ortsnachweis erfolgt über den erlaubten Internetanschluss, nicht über den Ausdruck. Wechselt die öffentliche IP des Betriebs, muss sie aktualisiert werden. Ein VPN ins Betriebsnetz würde ebenfalls als vor Ort gelten.</p>
       </div>
-      <div>
-        <label class="block text-sm mb-1">Bis</label>
-        <input type="date" name="to" class="bg-transparent border border-white/15 rounded px-2 py-1 text-white" required/>
-      </div>
-      <button class="btn-vintage rounded px-4 py-2 w-full sm:w-auto">Exportieren</button>
-    </form>
-  </div>
-</div>
-
-<!-- Modal -->
-<div id="editModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 z-50 p-4">
-  <div class="card p-6 w-full max-w-[420px] max-h-[90vh] overflow-y-auto">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="font-semibold">Mitarbeiter bearbeiten</h3>
-      <button onclick="closeEdit()" class="text-slate-400 hover:text-slate-200 px-2">✕</button>
     </div>
-    <form id="editForm" method="post" action="/admin/employees/update" class="space-y-3">
-      <input type="hidden" name="id" id="edit-id"/>
-      <div>
-        <label class="text-sm block mb-1">Name</label>
-        <input class="w-full bg-transparent border border-white/15 rounded px-3 py-2 text-white"
-               name="name" id="edit-name" required/>
-      </div>
-      <div>
-        <label class="text-sm block mb-1">Neue PIN (4–6 Stellen)</label>
-        <input class="w-full bg-transparent border border-white/15 rounded px-3 py-2 text-white"
-               name="pin" id="edit-pin" minlength="4" maxlength="6" placeholder="z.B. 1234" required/>
-        <p class="text-xs text-white/50 mt-1">Die alte PIN wird überschrieben.</p>
-      </div>
-      <label class="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="is_admin" id="edit-is-admin" class="accent-[#c5a268]"/> Admin-Rechte
-      </label>
-      <div class="flex justify-end gap-2 pt-2">
-        <button type="button" onclick="closeEdit()" class="px-4 py-2 rounded bg-white/10 hover:bg-white/15 w-full sm:w-auto">Abbrechen</button>
-        <button class="px-4 py-2 rounded btn-vintage w-full sm:w-auto">Speichern</button>
-      </div>
-    </form>
-  </div>
+  </section>
+  <section class="card p-6">
+    <h2 class="font-semibold mb-4">Letzte Änderungen</h2>
+    <div class="space-y-3"><% audits.forEach(a=>{ %><details class="border-b border-white/10 pb-3 text-sm"><summary><%= dayjs(a.created_at).tz(TZ).format('DD.MM.YYYY HH:mm') %> · <%= a.actor_name %> · <%= a.kind %><%= a.employee?' · '+a.employee:'' %><%= a.record_date?' · '+dayjs(a.record_date).format('DD.MM.YYYY'):'' %><div class="text-white/60 mt-1"><%= a.reason %></div></summary><div class="grid md:grid-cols-2 gap-3 mt-3"><div>Vorher<pre class="text-xs overflow-auto mt-2"><%= JSON.stringify(a.before_data,null,2) %></pre></div><div>Nachher<pre class="text-xs overflow-auto mt-2"><%= JSON.stringify(a.after_data,null,2) %></pre></div></div></details><% }) %><% if(!audits.length) { %><p class="text-sm text-white/50">Noch keine Änderungen protokolliert.</p><% } %></div>
+  </section>
 </div>
-
-<script>
-  function openEdit(data){
-    document.getElementById('edit-id').value = data.id;
-    document.getElementById('edit-name').value = data.name;
-    document.getElementById('edit-pin').value = '';
-    document.getElementById('edit-is-admin').checked = !!data.is_admin;
-    const m = document.getElementById('editModal');
-    m.classList.remove('hidden'); m.classList.add('flex');
-  }
-  function closeEdit(){
-    const m = document.getElementById('editModal');
-    m.classList.add('hidden'); m.classList.remove('flex');
-  }
-</script>
