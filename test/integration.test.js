@@ -270,7 +270,7 @@ test('migration, admin corrections, sickness and onsite booking against PostgreS
       assert.ok((await pool.query('SELECT * FROM day_statuses WHERE employee_id=3')).rows.length);
     });
     await t.test('production behind TLS proxy issues host-only secure device cookies and restores on-site sessions',async()=>{
-      const productionServer=spawn(process.execPath,['server.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,DATABASE_URL:connectionString,NODE_ENV:'production',PORT:'3109',HOST:'127.0.0.1',APP_URL:'https://timely.example',SESSION_SECRET:'test-production-session-secret-at-least-32-characters',TRUST_PROXY:'2'},windowsHide:true,stdio:['ignore','pipe','pipe']});
+      const productionServer=spawn(process.execPath,['server.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,DATABASE_URL:connectionString,NODE_ENV:'production',PORT:'3109',HOST:'127.0.0.1',APP_URL:'https://timely.example',SESSION_SECRET:'test-production-session-secret-at-least-32-characters',TRUST_PROXY:'3'},windowsHide:true,stdio:['ignore','pipe','pipe']});
       let productionLogs='';productionServer.stdout.on('data',chunk=>productionLogs+=chunk);productionServer.stderr.on('data',chunk=>productionLogs+=chunk);
       try {
         let ready=false;
@@ -278,7 +278,7 @@ test('migration, admin corrections, sickness and onsite booking against PostgreS
         assert.ok(ready,'Production server should start against the already migrated schema');
         const cookies=new Map();
         const request=async(url,body)=>{
-          const response=await fetch('http://127.0.0.1:3109'+url,{method:body?'POST':'GET',redirect:'manual',headers:{'x-forwarded-for':'198.51.100.20, 203.0.113.10, 10.30.208.245','x-forwarded-proto':'https',cookie:[...cookies].map(([key,value])=>`${key}=${value}`).join('; '),...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},body:body?new URLSearchParams(body):undefined});
+          const response=await fetch('http://127.0.0.1:3109'+url,{method:body?'POST':'GET',redirect:'manual',headers:{'x-forwarded-for':'198.51.100.20, 203.0.113.10, 198.51.100.30, 10.30.208.245','x-forwarded-proto':'https',cookie:[...cookies].map(([key,value])=>`${key}=${value}`).join('; '),...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},body:body?new URLSearchParams(body):undefined});
           const setCookies=response.headers.getSetCookie();for(const line of setCookies) {const pair=line.split(';')[0],split=pair.indexOf('=');cookies.set(pair.slice(0,split),pair.slice(split+1));}
           return {status:response.status,location:response.headers.get('location'),body:Buffer.from(await response.arrayBuffer()),setCookies};
         };
