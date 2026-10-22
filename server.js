@@ -17,6 +17,7 @@ import QRCode from 'qrcode';
 import { ensureSchema } from './lib/schema.js';
 import { parseNetworks, validGrant, newQrToken, normalizeIp } from './lib/onsite.js';
 import { deviceLifetime,deviceCookieName,deviceCookieOptions,deviceToken,tokenHash,newDevice,deviceLabel,findDevice,listDevices } from './lib/devices.js';
+import { closurePlan } from './lib/legacy-closure.js';
 import { TZ, profiles, statusLabels, validDate, dateKey, addDays, monday, weekNumber, defaultProfile, plannedStatus, countsSick, duration, summary, fromLocal } from './public/js/rules.js';
 
 dayjs.extend(utc); dayjs.extend(timezone);
@@ -103,9 +104,12 @@ async function transaction(handler) {
 async function lockDay(db,employeeId,date) { await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`timely:employee:${employeeId}`]); }
 async function employeeList() { return (await pool.query('SELECT id,name,is_admin,schedule_profile,active FROM employees ORDER BY active DESC,name')).rows; }
 function back(req,res,message) { req.session.flash=message; res.redirect(`/admin?week=${monday(validDate(req.body.week)?req.body.week:dateKey())}`); }
-function parseLocal(value) {
+function correctionInstant(date,value) {
   if(!value) return null;
-  try { return fromLocal(value); } catch(error) { fail(error.message); }
+  // Accept already-open older forms only when their date matches the fixed day.
+  const time=/^\d{2}:\d{2}$/.test(value)?value:typeof value==='string' && value.startsWith(date+'T')?value.slice(11):null;
+  if(!time || !/^\d{2}:\d{2}$/.test(time)) fail('Bitte nur eine gültige Uhrzeit am angezeigten Tag eingeben.');
+  try { return fromLocal(date+'T'+time); } catch(error) { fail(error.message); }
 }
 async function loadPeriod(from,to) {
   const [entries,pauses,statuses]=await Promise.all([
@@ -303,14 +307,43 @@ app.post('/admin/devices/revoke',auth,admin,route(async(req,res)=>{
   back(req,res,'Gerät gesperrt. Es kann erst nach erneuter PIN-Anmeldung wieder verknüpft werden.');
 }));
 app.get('/admin/entries/edit',auth,admin,route(async(req,res)=>{
-  const employeeId=integer(req.query.employee_id),date=checkDate(req.query.date),entryId=req.query.id?integer(req.query.id):null;
+  const employeeId=integer(req.query.employee_id),requestedDate=checkDate(req.query.date),entryId=req.query.id?integer(req.query.id):null;
   const {rows}=await pool.query('SELECT id,name FROM employees WHERE id=$1',[employeeId]);
   if(!rows.length) fail('Mitarbeiter nicht gefunden.',404);
-  const {rows:entries}=await pool.query('SELECT * FROM time_entries WHERE employee_id=$1 AND date=$2 ORDER BY id',[employeeId,date]);
-  const entry=entryId?entries.find(e=>e.id===entryId):entries[0];
+  const {rows:entries}=entryId?await pool.query('SELECT * FROM time_entries WHERE employee_id=$1 AND id=$2',[employeeId,entryId]):await pool.query('SELECT * FROM time_entries WHERE employee_id=$1 AND date=$2 ORDER BY id',[employeeId,requestedDate]);
+  const entry=entries[0],date=entry?.check_in?dateKey(entry.check_in):requestedDate;
   if(entryId&&!entry) fail('Buchung nicht gefunden.',404);
   const pauses=entry?(await pool.query('SELECT * FROM breaks WHERE entry_id=$1 ORDER BY start',[entry.id])).rows:[];
   res.render('edit-entry',{employee:rows[0],date,entry,pauses,week:monday(date)});
+}));
+app.get('/admin/entries/close-open',auth,admin,route(async(req,res)=>{
+  const cutoff=checkDate(req.query.cutoff || dateKey());
+  if(cutoff>dateKey()) fail('Bitte keinen zukünftigen Stichtag wählen.');
+  const plan=await closurePlan(pool,cutoff);
+  req.session.closurePreview={cutoff,fingerprint:plan.fingerprint,employeeIds:plan.employeeIds};
+  res.render('close-open',{cutoff,plan});
+}));
+app.post('/admin/entries/close-open',auth,admin,route(async(req,res)=>{
+  const preview=req.session.closurePreview,why=reason(req.body.reason);
+  if(!preview || !sameSecret(preview.fingerprint,req.body.fingerprint) || preview.cutoff!==req.body.cutoff) fail('Bitte zuerst die aktuelle Vorschau öffnen.',409);
+  if(req.body.confirm!=='on') fail('Bitte die pauschale Ergänzung ausdrücklich bestätigen.');
+  const count=await transaction(async db=>{
+    for(const id of preview.employeeIds) await lockDay(db,id,preview.cutoff);
+    const plan=await closurePlan(db,preview.cutoff);
+    if(!sameSecret(plan.fingerprint,preview.fingerprint)) fail('Buchungen wurden inzwischen geändert. Bitte die Vorschau neu öffnen.',409);
+    if(plan.blocked) fail('Es gibt Konflikte in der Vorschau. Bitte diese zuerst klären.',409);
+    for(const row of plan.rows) {
+      const after=(await db.query('UPDATE time_entries SET date=$1,check_out=$2,break_minutes_override=30,revision=revision+1 WHERE id=$3 AND check_out IS NULL AND revision=$4 RETURNING *',[row.date,row.end,row.entry.id,row.entry.revision])).rows[0];
+      if(!after) fail('Eine Buchung wurde inzwischen geändert. Bitte die Vorschau neu öffnen.',409);
+      // Preserve every recorded pause; close a forgotten pause without creating negative intervals.
+      await db.query('UPDATE breaks SET "end"=GREATEST(start,$1::timestamptz) WHERE entry_id=$2 AND "end" IS NULL AND start IS NOT NULL',[row.end,row.entry.id]);
+      const afterBreaks=(await db.query('SELECT * FROM breaks WHERE entry_id=$1 ORDER BY id',[row.entry.id])).rows;
+      await audit(db,req,'Pauschale Altdaten-Korrektur',row.entry.employee_id,row.date,{entry:row.entry,breaks:row.breaks},{entry:after,breaks:afterBreaks,estimated:true,net_minutes:480,pause_minutes:30,following_day_exception:row.followingDay},why);
+    }
+    return plan.rows.length;
+  });
+  delete req.session.closurePreview;
+  back(req,res,`${count} offene Altbuchungen pauschal mit 8 Stunden Arbeitszeit und 30 Minuten Pause abgeschlossen und protokolliert.`);
 }));
 app.get('/admin/qr',auth,admin,route(async(req,res)=>{
   const config=await onsiteSettings(),url=baseUrl();
@@ -319,19 +352,19 @@ app.get('/admin/qr',auth,admin,route(async(req,res)=>{
   res.render('qr',{qrImage,enabled:config.enabled});
 }));
 app.post('/admin/entries/save',auth,admin,route(async(req,res)=>{
-  const employeeId=integer(req.body.employee_id),date=checkDate(req.body.date),why=reason(req.body.reason),start=parseLocal(req.body.check_in),end=parseLocal(req.body.check_out);
-  if(!start) fail('Bitte einen Beginn angeben.');
-  if(dateKey(start)!==date) fail('Der Beginn muss am ausgewählten Tag liegen.');
-  if(new Date(start)>new Date() || (end&&new Date(end)>new Date())) fail('Zeiten dürfen nicht in der Zukunft liegen.');
-  const gross=end?Math.floor((new Date(end)-new Date(start))/60000):null;
-  if(end && (gross<=0 || gross>24*60)) fail('Das Ende muss nach dem Beginn und innerhalb von 24 Stunden liegen.');
-  const pause=req.body.break_minutes===''?null:Number(req.body.break_minutes);
-  if(pause!==null && (!Number.isInteger(pause)||pause<0||pause>1440||(gross!==null&&pause>gross))) fail('Ungültige Pausendauer.');
+  const employeeId=integer(req.body.employee_id),requestedDate=checkDate(req.body.date),why=reason(req.body.reason);
   await transaction(async db=>{
-    await lockDay(db,employeeId,date);
-    const {rows:existing}=await db.query('SELECT * FROM time_entries WHERE employee_id=$1 AND date=$2 ORDER BY id FOR UPDATE',[employeeId,date]);
-    const entry=req.body.id?existing.find(e=>e.id===integer(req.body.id)):null;
+    await lockDay(db,employeeId,requestedDate);
+    const {rows:existing}=req.body.id?await db.query('SELECT * FROM time_entries WHERE employee_id=$1 AND id=$2 FOR UPDATE',[employeeId,integer(req.body.id)]):await db.query('SELECT * FROM time_entries WHERE employee_id=$1 AND date=$2 ORDER BY id FOR UPDATE',[employeeId,requestedDate]);
+    const entry=req.body.id?existing[0]:null,date=entry?.check_in?dateKey(entry.check_in):requestedDate;
     if((req.body.id&&!entry) || (!req.body.id&&existing.length) || (entry&&String(entry.revision)!==req.body.revision)) fail('Die Buchung wurde inzwischen geändert. Bitte neu öffnen.',409);
+    const start=correctionInstant(date,req.body.check_in),end=correctionInstant(date,req.body.check_out);
+    if(!start) fail('Bitte einen Beginn angeben.');
+    if(new Date(start)>new Date() || (end&&new Date(end)>new Date())) fail('Zeiten dürfen nicht in der Zukunft liegen.');
+    const gross=end?Math.floor((new Date(end)-new Date(start))/60000):null;
+    if(end && gross<=0) fail('Das Ende muss am selben Tag nach dem Beginn liegen.');
+    const pause=req.body.break_minutes===''?null:Number(req.body.break_minutes);
+    if(pause!==null && (!Number.isInteger(pause)||pause<0||pause>1440||(gross!==null&&pause>gross))) fail('Ungültige Pausendauer.');
     const status=(await db.query('SELECT status FROM day_statuses WHERE employee_id=$1 AND date=$2',[employeeId,date])).rows[0]?.status;
     if(status&&status!=='work') fail('Bitte zuerst die eingetragene Abwesenheit entfernen oder auf Arbeitstag setzen.');
     const {rows:overlap}=await db.query("SELECT id FROM time_entries WHERE employee_id=$1 AND id<>$2 AND check_in IS NOT NULL AND check_in<COALESCE($3::timestamptz,'infinity'::timestamptz) AND COALESCE(check_out,'infinity'::timestamptz)>$4::timestamptz",[employeeId,entry?.id || 0,end,start]);
@@ -342,7 +375,7 @@ app.post('/admin/entries/save',auth,admin,route(async(req,res)=>{
     if(gross!==null && (pause??originalPause)>gross) fail('Die Pausen sind länger als die Gesamtzeit.');
     let updated;
     if(entry) {
-      updated=(await db.query('UPDATE time_entries SET check_in=$1,check_out=$2,break_minutes_override=$3,revision=revision+1 WHERE id=$4 RETURNING *',[start,end,pause,entry.id])).rows[0];
+      updated=(await db.query('UPDATE time_entries SET check_in=$1,check_out=$2,break_minutes_override=$3,date=$5,revision=revision+1 WHERE id=$4 RETURNING *',[start,end,pause,entry.id,date])).rows[0];
       if(end) await db.query('UPDATE breaks SET "end"=$1 WHERE entry_id=$2 AND "end" IS NULL',[end,entry.id]);
     } else updated=(await db.query('INSERT INTO time_entries(employee_id,date,check_in,check_out,break_minutes_override) VALUES($1,$2,$3,$4,$5) RETURNING *',[employeeId,date,start,end,pause])).rows[0];
     const afterPauses=(await db.query('SELECT * FROM breaks WHERE entry_id=$1 ORDER BY start',[updated.id])).rows;

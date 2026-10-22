@@ -1,0 +1,25 @@
+<% layout('layout',{user}) %>
+<div class="max-w-5xl mx-auto space-y-5">
+  <a class="underline text-sm" href="/admin">← Wochenübersicht</a>
+  <h1 class="text-2xl font-bold">Offene Altbuchungen abschließen</h1>
+  <section class="card p-5 space-y-3">
+    <p><strong><%= plan.rows.length %> offene Buchungen</strong> mit Beginn bis einschließlich <%= dayjs(cutoff).format('DD.MM.YYYY') %>.</p>
+    <p>Je Buchung: unveränderter Beginn + 8 Stunden Arbeitszeit + 30 Minuten Pause = Ende nach 8 Stunden 30 Minuten.</p>
+    <p class="text-sm text-white/60">Diese Ergänzung ist eine pauschale Schätzung auf Admin-Anweisung. Jede Änderung wird mit bisherigem Stand und Begründung protokolliert. Bereits abgeschlossene Tage werden nicht verändert. Vorhandene Pausen bleiben dokumentiert; für die Summe gelten 30 Minuten. Offene Pausen werden geschlossen.</p>
+    <% if(plan.rows.some(row=>row.followingDay)) { %><p class="text-sm text-amber-200"><%= plan.rows.filter(row=>row.followingDay).length %> späte Altbuchungen enden ausnahmsweise am Folgetag. Diese Ausnahme wird mit protokolliert.</p><% } %>
+  </section>
+  <section class="card p-5 overflow-x-auto">
+    <table class="week-table"><thead><tr><th>Mitarbeiter</th><th>Beginn</th><th>Neues Ende</th><th>Netto</th><th>Hinweis</th></tr></thead><tbody>
+    <% plan.rows.forEach(row=>{ %><tr><td><%= row.entry.name %></td><td><%= dayjs(row.start).tz(TZ).format('DD.MM.YYYY HH:mm') %></td><td><%= dayjs(row.end).tz(TZ).format('DD.MM.YYYY HH:mm') %></td><td>8h 00m</td><td><%= row.issues.join(' ') || (row.followingDay?'Einmalige Folgetag-Ausnahme':'') %></td></tr><% }) %>
+    </tbody></table>
+  </section>
+  <% if(plan.blocked) { %><p class="text-amber-200">Einige Buchungen haben Konflikte. Bitte diese zuerst einzeln klären und die Vorschau neu öffnen.</p><% } %>
+  <% if(plan.rows.length && !plan.blocked) { %>
+    <form class="card p-5 timely-form space-y-4" method="post" action="/admin/entries/close-open">
+      <%- include('_csrf') %><input type="hidden" name="cutoff" value="<%= cutoff %>"><input type="hidden" name="fingerprint" value="<%= plan.fingerprint %>">
+      <label>Begründung<textarea name="reason" required minlength="3" maxlength="500" placeholder="Pauschale Altdaten-Ergänzung auf ausdrückliche Admin-Anweisung."></textarea></label>
+      <label><input type="checkbox" name="confirm" required>Die angezeigten <%= plan.rows.length %> Buchungen pauschal ergänzen, einschließlich der ausgewiesenen Folgetag-Ausnahmen.</label>
+      <button class="btn-vintage rounded px-4 py-2">Alle <%= plan.rows.length %> angezeigten Buchungen abschließen</button>
+    </form>
+  <% } %>
+</div>
