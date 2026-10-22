@@ -4,6 +4,7 @@ import connectPgSimple from 'connect-pg-simple';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import { Pool, types } from 'pg';
@@ -15,6 +16,7 @@ import ejsMate from 'ejs-mate';
 import QRCode from 'qrcode';
 import { ensureSchema } from './lib/schema.js';
 import { parseNetworks, validGrant, newQrToken, normalizeIp } from './lib/onsite.js';
+import { deviceLifetime,deviceCookieName,deviceCookieOptions,deviceToken,tokenHash,newDevice,deviceLabel,findDevice,listDevices } from './lib/devices.js';
 import { TZ, profiles, statusLabels, validDate, dateKey, addDays, monday, weekNumber, defaultProfile, plannedStatus, countsSick, duration, summary, fromLocal } from './public/js/rules.js';
 
 dayjs.extend(utc); dayjs.extend(timezone);
@@ -48,6 +50,10 @@ function integer(value) { if(!/^\d+$/.test(String(value)) || +value<1 || !Number
 function reason(value) { const text=String(value || '').trim(); if(text.length<3 || text.length>500) fail('Bitte einen Grund mit 3–500 Zeichen eingeben.'); return text; }
 function checkDate(value) { if(!validDate(value)) fail('Bitte ein gültiges Datum wählen.'); return value; }
 function sameSecret(a,b) { return typeof a==='string' && typeof b==='string' && Buffer.byteLength(a)===Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a),Buffer.from(b)); }
+function clearDeviceCookie(res) {
+  const {maxAge,...options}=deviceCookieOptions(production);
+  res.clearCookie(deviceCookieName(production),options);
+}
 async function onsiteSettings(db=pool) { return (await db.query("SELECT value FROM app_settings WHERE key='onsite'")).rows[0].value; }
 function baseUrl() {
   try { const url=new URL(process.env.APP_URL || 'https://blank-timely.de'); if(url.pathname!=='/' || url.search || url.hash || url.username || url.password || (url.protocol!=='https:' && !(url.protocol==='http:' && !production))) return null; return url.origin; } catch { return null; }
@@ -55,18 +61,36 @@ function baseUrl() {
 app.use(route(async(req,res,next)=>{
   res.set('Cache-Control','no-store');
   req.session.csrf ||= randomBytes(24).toString('hex');
-  res.locals.csrf=req.session.csrf; res.locals.user=null; res.locals.flash=req.session.flash || null;
+  res.locals.csrf=req.session.csrf; res.locals.user=null; res.locals.deviceLinked=false; res.locals.flash=req.session.flash || null;
   delete req.session.flash;
   res.locals.duration=duration; res.locals.dayjs=dayjs; res.locals.TZ=TZ;
   if(req.method==='POST' && !sameSecret(req.body._csrf,req.session.csrf)) fail('Die Sitzung ist abgelaufen. Seite neu laden und erneut versuchen.',403);
   if(req.session.user) {
-    const {rows}=await pool.query('SELECT id,name,is_admin,schedule_profile FROM employees WHERE id=$1 AND active=TRUE',[req.session.user.id]);
-    req.session.user=rows[0] || null; res.locals.user=req.session.user;
+    const {rows}=await pool.query('SELECT id,name,is_admin,schedule_profile,auth_version FROM employees WHERE id=$1 AND active=TRUE',[req.session.user.id]);
+    const employee=rows[0];
+    let valid=employee && employee.auth_version===(req.session.authVersion ?? 0);
+    if(valid && req.session.deviceId) {
+      const device=await findDevice(pool,deviceToken(req,production));
+      valid=device?.id===req.session.deviceId && device.employee_id===employee.id;
+    }
+    if(valid && req.session.authMethod==='device') {
+      const settings=await onsiteSettings();
+      valid=settings.enabled && parseNetworks(settings.networks).contains(req.ip);
+    }
+    if(!valid) { delete req.session.user; delete req.session.onsite; delete req.session.deviceId; delete req.session.authMethod; delete req.session.authVersion; }
+    else { req.session.user=employee; res.locals.user=employee; res.locals.deviceLinked=!!req.session.deviceId; }
   }
   next();
 }));
 function auth(req,res,next) { if(!req.session.user) return res.redirect('/login'); next(); }
-function admin(req,res,next) { if(!req.session.user?.is_admin) return res.status(403).render('error',{message:'Nur für Administratoren.'}); next(); }
+function admin(req,res,next) {
+  if(!req.session.user?.is_admin) return res.status(403).render('error',{message:'Nur für Administratoren.'});
+  if(req.session.authMethod==='device') {
+    if(req.method==='GET') return res.redirect('/login?admin=1');
+    return res.status(403).render('error',{message:'Für die Verwaltung bitte zuerst mit deiner PIN anmelden.'});
+  }
+  next();
+}
 async function audit(db,req,kind,employeeId,date,before,after,why) {
   await db.query('INSERT INTO audit_log(actor_id,actor_name,employee_id,kind,record_date,before_data,after_data,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[req.session.user.id,req.session.user.name,employeeId,kind,date,JSON.stringify(before),JSON.stringify(after),why]);
 }
@@ -107,7 +131,17 @@ async function requireOnsite(req,db) {
 }
 
 app.get('/health',(req,res)=>res.send('OK'));
-app.get('/login',route(async(req,res)=>res.render('login',{employees:(await employeeList()).filter(e=>e.active),error:null})));
+// Connection status reveals no employee, allowlist, QR token or client address.
+app.get('/network-status',route(async(req,res)=>{
+  const settings=await onsiteSettings();
+  res.json({required:settings.enabled,atWork:settings.enabled && parseNetworks(settings.networks).contains(req.ip)});
+}));
+async function loginPage(req,res,error=null,status=200) {
+  const settings=await onsiteSettings();
+  const pairAvailable=settings.enabled && parseNetworks(settings.networks).contains(req.ip) && validGrant(req.session.onsite,settings.token);
+  res.status(status).render('login',{employees:(await employeeList()).filter(e=>e.active),error,pairAvailable,adminLogin:req.query.admin==='1'||req.body.admin_login==='1',selectedEmployeeId:String(req.body.employee_id || req.session.user?.id || '')});
+}
+app.get('/login',route(async(req,res)=>loginPage(req,res)));
 const attempts=new Map();
 app.post('/login',route(async(req,res)=>{
   const ip=req.ip,now=Date.now();
@@ -118,23 +152,74 @@ app.post('/login',route(async(req,res)=>{
   const employee=rows[0];
   if(!employee || !sameSecret(String(req.body.pin || ''),employee.pin)) {
     attempt.count++; if(attempts.size<10000 || attempts.has(ip)) attempts.set(ip,attempt);
-    return res.status(401).render('login',{employees:(await employeeList()).filter(e=>e.active),error:'Falsche PIN oder Nutzer.'});
+    return loginPage(req,res,'Falsche PIN oder Nutzer.',401);
   }
-  attempts.delete(ip); const grant=req.session.onsite;
+  const grant=req.session.onsite,token=deviceToken(req,production),existingDevice=await findDevice(pool,token);
+  let pairedDevice=null,newToken=null;
+  const wantsPair=req.body.remember_device==='on' && req.body.admin_login!=='1';
+  if(wantsPair && existingDevice && existingDevice.employee_id!==employee.id) fail('Dieses Handy ist bereits einem anderen Mitarbeiter zugeordnet. Zuerst dessen Geräte-Verknüpfung aufheben.',409);
+  await transaction(async db=>{
+    const current=(await db.query('SELECT pin,auth_version,active FROM employees WHERE id=$1 FOR UPDATE',[employee.id])).rows[0];
+    if(!current?.active || !sameSecret(current.pin,employee.pin) || current.auth_version!==employee.auth_version) fail('Die Kontodaten wurden geändert. Bitte erneut anmelden.',409);
+    if(wantsPair) {
+      const settings=await onsiteSettings(db);
+      const scan=settings.enabled && parseNetworks(settings.networks).contains(req.ip) && validGrant(grant,settings.token)
+        && (await db.query('SELECT id FROM onsite_grants WHERE id=$1 AND qr_token=$2 AND expires>NOW()',[grant.id,settings.token])).rows.length;
+      if(!scan) fail('Zum Verknüpfen bitte im Betriebs-WLAN den QR-Code erneut scannen.',403);
+      if(existingDevice) pairedDevice=existingDevice;
+      else {
+        const device=newDevice(),label=deviceLabel(req.body.device_label);
+        await db.query('INSERT INTO remembered_devices(id,employee_id,token_hash,label,auth_version,expires_at) VALUES($1,$2,$3,$4,$5,$6)',[device.id,employee.id,tokenHash(device.token),label,employee.auth_version,new Date(Date.now()+deviceLifetime)]);
+        pairedDevice={id:device.id,label};newToken=device.token;
+        await db.query("INSERT INTO audit_log(actor_id,actor_name,employee_id,kind,after_data,reason) VALUES($1,$2,$1,'Gerät verknüpft',$3,'Mit persönlicher PIN und QR-Scan im Betriebsnetz bestätigt')",[employee.id,employee.name,JSON.stringify({id:device.id,label})]);
+      }
+    } else if(existingDevice?.employee_id===employee.id) pairedDevice=existingDevice;
+  });
+  attempts.delete(ip);
   await new Promise((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
-  req.session.user={id:employee.id}; req.session.onsite=grant; res.redirect('/');
+  req.session.user={id:employee.id}; req.session.authVersion=employee.auth_version; req.session.authMethod='pin'; req.session.onsite=grant;
+  if(pairedDevice) req.session.deviceId=pairedDevice.id;
+  if(newToken) res.cookie(deviceCookieName(production),newToken,deviceCookieOptions(production));
+  req.session.flash=newToken?'Dieses Handy ist jetzt mit deinem Konto verknüpft. Beim nächsten QR-Scan brauchst du keine PIN mehr.':undefined;
+  res.redirect(req.body.admin_login==='1'&&employee.is_admin?'/admin':'/');
 }));
 app.get('/logout',(req,res)=>req.session.destroy(()=>res.redirect('/login')));
 app.get('/vor-ort/:token',route(async(req,res)=>{
   const settings=await onsiteSettings();
   if(!settings.enabled || !sameSecret(req.params.token,settings.token)) fail('Dieser QR-Code ist nicht aktiv.',403);
   if(!parseNetworks(settings.networks).contains(req.ip)) fail('Bitte mit dem Betriebs-WLAN verbinden und den QR-Code erneut scannen.',403);
+  const token=deviceToken(req,production),device=await findDevice(pool,token);
+  if(device) {
+    const keepPin=req.session.user?.id===device.employee_id && req.session.authMethod!=='device';
+    await new Promise((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
+    req.session.user={id:device.employee_id}; req.session.authVersion=device.auth_version;
+    req.session.authMethod=keepPin?'pin':'device'; req.session.deviceId=device.id;
+    await pool.query('UPDATE remembered_devices SET last_used_at=NOW(),expires_at=$1 WHERE id=$2 AND revoked_at IS NULL',[new Date(Date.now()+deviceLifetime),device.id]);
+    res.cookie(deviceCookieName(production),token,deviceCookieOptions(production));
+  } else if(token) clearDeviceCookie(res);
   const id=randomBytes(24).toString('hex'),expires=Date.now()+120000;
   await pool.query('DELETE FROM onsite_grants WHERE expires<=NOW()');
   await pool.query('INSERT INTO onsite_grants(id,qr_token,expires) VALUES($1,$2,$3)',[id,settings.token,new Date(expires)]);
   req.session.onsite={id,token:settings.token,expires};
   req.session.flash='QR-Code erkannt. Du kannst jetzt innerhalb von 2 Minuten eine Buchung bestätigen.';
-  res.redirect(req.session.user?'/':'/login');
+  res.redirect(device?'/':'/login');
+}));
+app.get('/devices',auth,route(async(req,res)=>{
+  res.render('devices',{devices:await listDevices(pool,req.session.user.id),currentDeviceId:req.session.deviceId || null});
+}));
+app.post('/devices/revoke',auth,route(async(req,res)=>{
+  const id=String(req.body.id || '');
+  if(!/^[a-f0-9-]{36}$/.test(id)) fail('Ungültige Geräteauswahl.');
+  await transaction(async db=>{
+    const device=(await db.query('UPDATE remembered_devices SET revoked_at=NOW() WHERE id=$1 AND employee_id=$2 AND revoked_at IS NULL RETURNING id,label',[id,req.session.user.id])).rows[0];
+    if(!device) fail('Gerät nicht gefunden oder bereits gesperrt.',404);
+    await audit(db,req,'Gerät gesperrt',req.session.user.id,null,device,null,'Verknüpfung durch Mitarbeiter aufgehoben');
+  });
+  if(id===req.session.deviceId) {
+    clearDeviceCookie(res);
+    return req.session.destroy(()=>res.redirect('/login'));
+  }
+  req.session.flash='Geräte-Verknüpfung aufgehoben. Dieses Gerät benötigt beim nächsten Scan wieder die PIN.';res.redirect('/devices');
 }));
 app.get('/',auth,route(async(req,res)=>{
   const user=req.session.user,date=dateKey();
@@ -179,11 +264,12 @@ app.get('/history',auth,route(async(req,res)=>{
 
 app.get('/admin',auth,admin,route(async(req,res)=>{
   const week=monday(req.query.week?checkDate(req.query.week):dateKey()),to=addDays(week,6),year=addDays(week,3).slice(0,4);
-  const [employees,period,settings,yearStatuses,open,audits]=await Promise.all([
+  const [employees,period,settings,yearStatuses,open,audits,devices]=await Promise.all([
     employeeList(),loadPeriod(week,to),onsiteSettings(),
     pool.query('SELECT * FROM day_statuses WHERE date BETWEEN $1 AND $2',[`${year}-01-01`,`${year}-12-31`]),
     pool.query('SELECT t.*,e.name FROM time_entries t JOIN employees e ON e.id=t.employee_id WHERE check_in IS NOT NULL AND check_out IS NULL ORDER BY date,e.name'),
-    pool.query('SELECT a.*,e.name AS employee FROM audit_log a LEFT JOIN employees e ON e.id=a.employee_id ORDER BY a.id DESC LIMIT 30')
+    pool.query('SELECT a.*,e.name AS employee FROM audit_log a LEFT JOIN employees e ON e.id=a.employee_id ORDER BY a.id DESC LIMIT 30'),
+    listDevices(pool)
   ]);
   const days=Array.from({length:7},(_,i)=>addDays(week,i));
   const rows=employees.filter(e=>e.active || period.entries.some(t=>t.employee_id===e.id) || period.statuses.some(s=>s.employee_id===e.id)).map(employee=>{
@@ -195,7 +281,26 @@ app.get('/admin',auth,admin,route(async(req,res)=>{
   });
   const url=baseUrl(),qrUrl=url?`${url}/vor-ort/${settings.token}`:null;
   const qrImage=qrUrl?await QRCode.toDataURL(qrUrl,{width:400,margin:4,errorCorrectionLevel:'M'}):null;
-  res.render('admin',{employees,rows,days,week,to,year,weekTitle:weekNumber(week),previous:addDays(week,-7),next:addDays(week,7),profiles,statusLabels,onsiteConfig:settings,ip:normalizeIp(req.ip),qrUrl,qrImage,open:open.rows,audits:audits.rows,plannedStatus});
+  res.render('admin',{employees,rows,days,week,to,year,weekTitle:weekNumber(week),previous:addDays(week,-7),next:addDays(week,7),profiles,statusLabels,onsiteConfig:settings,ip:normalizeIp(req.ip),qrUrl,qrImage,open:open.rows,audits:audits.rows,plannedStatus,devices,currentDeviceId:req.session.deviceId || null});
+}));
+// Admin-only setup diagnostics: no cookies, credentials or arbitrary headers are exposed.
+app.get('/admin/network-info',auth,admin,(req,res)=>{
+  const addresses=String(req.headers['x-forwarded-for'] || '').split(',').map(value=>normalizeIp(value.trim()));
+  res.json({clientIp:normalizeIp(req.ip),socketAddress:normalizeIp(req.socket.remoteAddress),forwardedFor:addresses.filter(value=>isIP(value)),trustedProxyCount:Number(process.env.TRUST_PROXY || 0)});
+});
+app.post('/admin/devices/revoke',auth,admin,route(async(req,res)=>{
+  const id=String(req.body.id || ''),why=reason(req.body.reason);
+  if(!/^[a-f0-9-]{36}$/.test(id)) fail('Ungültige Geräteauswahl.');
+  await transaction(async db=>{
+    const device=(await db.query('UPDATE remembered_devices SET revoked_at=NOW() WHERE id=$1 AND revoked_at IS NULL RETURNING id,employee_id,label',[id])).rows[0];
+    if(!device) fail('Gerät nicht gefunden oder bereits gesperrt.',404);
+    await audit(db,req,'Gerät gesperrt',device.employee_id,null,device,null,why);
+  });
+  if(id===req.session.deviceId) {
+    clearDeviceCookie(res);
+    return req.session.destroy(()=>res.redirect('/login'));
+  }
+  back(req,res,'Gerät gesperrt. Es kann erst nach erneuter PIN-Anmeldung wieder verknüpft werden.');
 }));
 app.get('/admin/entries/edit',auth,admin,route(async(req,res)=>{
   const employeeId=integer(req.query.employee_id),date=checkDate(req.query.date),entryId=req.query.id?integer(req.query.id):null;
@@ -273,7 +378,8 @@ app.post('/admin/employees/:action(add|update|deactivate)',auth,admin,route(asyn
     if(id&&!before) fail('Mitarbeiter nicht gefunden.',404);
     if(action==='deactivate') {
       if(id===req.session.user.id) fail('Das eigene Konto kann nicht deaktiviert werden.');
-      const after=(await db.query('UPDATE employees SET active=FALSE WHERE id=$1 RETURNING id,name,is_admin,schedule_profile,active',[id])).rows[0];
+      const after=(await db.query('UPDATE employees SET active=FALSE,auth_version=auth_version+1 WHERE id=$1 RETURNING id,name,is_admin,schedule_profile,active',[id])).rows[0];
+      await db.query('UPDATE remembered_devices SET revoked_at=NOW() WHERE employee_id=$1 AND revoked_at IS NULL',[id]);
       await audit(db,req,'Mitarbeiter',id,null,before,after,why); return;
     }
     const name=String(req.body.name||'').trim(),pin=String(req.body.pin||''),isAdmin=req.body.is_admin==='on',profile=req.body.schedule_profile || defaultProfile(name);
@@ -281,7 +387,8 @@ app.post('/admin/employees/:action(add|update|deactivate)',auth,admin,route(asyn
     if(id===req.session.user.id&&(!isAdmin||req.body.active!=='on')) fail('Eigene Admin-Rechte und das eigene Konto müssen aktiv bleiben.');
     const after=action==='add'
       ?(await db.query('INSERT INTO employees(name,pin,is_admin,schedule_profile) VALUES($1,$2,$3,$4) RETURNING id,name,is_admin,schedule_profile,active',[name,pin,isAdmin,profile])).rows[0]
-      :(await db.query("UPDATE employees SET name=$1,pin=CASE WHEN $2='' THEN pin ELSE $2 END,is_admin=$3,schedule_profile=$4,active=$5 WHERE id=$6 RETURNING id,name,is_admin,schedule_profile,active",[name,pin,isAdmin,profile,req.body.active==='on',id])).rows[0];
+      :(await db.query("UPDATE employees SET name=$1,pin=CASE WHEN $2='' THEN pin ELSE $2 END,is_admin=$3,schedule_profile=$4,active=$5,auth_version=auth_version+CASE WHEN $2<>'' OR NOT $5 THEN 1 ELSE 0 END WHERE id=$6 RETURNING id,name,is_admin,schedule_profile,active",[name,pin,isAdmin,profile,req.body.active==='on',id])).rows[0];
+    if(action==='update' && (pin || !after.active)) await db.query('UPDATE remembered_devices SET revoked_at=NOW() WHERE employee_id=$1 AND revoked_at IS NULL',[id]);
     await audit(db,req,'Mitarbeiter',after.id,null,before,{...after,pin_changed:!!pin},why);
   });
   back(req,res,'Mitarbeiter gespeichert.');

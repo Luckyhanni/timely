@@ -1,0 +1,17 @@
+<% layout('layout',{user}) %>
+<div class="max-w-3xl mx-auto space-y-5">
+  <div><h1 class="text-2xl font-bold">Meine Geräte</h1><p class="text-white/60 mt-2">Verknüpfte Handys erkennen dich beim QR-Scan im Betriebs-WLAN wieder. Du bestätigst die Buchung weiterhin selbst.</p></div>
+  <p class="text-sm text-white/60">Die Verknüpfung gilt für diesen Browser. Nach dem Löschen der Browserdaten oder im privaten Modus ist die PIN erneut nötig. Abmelden beendet die Sitzung; die Geräte-Verknüpfung bleibt bestehen. Mit „Verknüpfung aufheben“ entfernst du sie dauerhaft.</p>
+  <% if(!devices.length) { %><section class="card p-5"><h2 class="font-semibold">Noch kein Gerät verknüpft</h2><p class="mt-2 text-sm text-white/60">Scanne im Betriebs-WLAN den ausgedruckten QR-Code. Melde dich mit Name und PIN an und wähle „Dieses persönliche Handy verknüpfen“.</p></section><% } %>
+  <% devices.forEach(device=>{ %>
+    <section class="card p-5">
+      <h2 class="font-semibold"><%= device.label %><% if(device.id===currentDeviceId) { %> <span class="text-sm text-amber-200">· Dieses Gerät</span><% } %></h2>
+      <p class="text-sm text-white/60 mt-2">Verknüpft am <%= dayjs(device.created_at).tz(TZ).format('DD.MM.YYYY') %> · Zuletzt verwendet: <%= dayjs(device.last_used_at).tz(TZ).format('DD.MM.YYYY HH:mm') %></p>
+      <form method="post" action="/devices/revoke" class="mt-4">
+        <%- include('_csrf') %><input type="hidden" name="id" value="<%= device.id %>">
+        <button class="btn-rose rounded px-4 py-2">Verknüpfung aufheben<%= device.id===currentDeviceId?' und abmelden':'' %></button>
+      </form>
+    </section>
+  <% }) %>
+  <p class="text-sm text-white/60">Handy verloren? Bitte den Admin bitten, das Gerät zu sperren. Bei einer neuen PIN werden alle bisherigen Verknüpfungen und Sitzungen deines Kontos ungültig.</p>
+</div>
