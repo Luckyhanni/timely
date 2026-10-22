@@ -4,6 +4,7 @@ import connectPgSimple from 'connect-pg-simple';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { isIP } from 'node:net';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import { Pool, types } from 'pg';
@@ -130,6 +131,11 @@ async function requireOnsite(req,db) {
 }
 
 app.get('/health',(req,res)=>res.send('OK'));
+// Connection status reveals no employee, allowlist, QR token or client address.
+app.get('/network-status',route(async(req,res)=>{
+  const settings=await onsiteSettings();
+  res.json({required:settings.enabled,atWork:settings.enabled && parseNetworks(settings.networks).contains(req.ip)});
+}));
 async function loginPage(req,res,error=null,status=200) {
   const settings=await onsiteSettings();
   const pairAvailable=settings.enabled && parseNetworks(settings.networks).contains(req.ip) && validGrant(req.session.onsite,settings.token);
@@ -277,6 +283,11 @@ app.get('/admin',auth,admin,route(async(req,res)=>{
   const qrImage=qrUrl?await QRCode.toDataURL(qrUrl,{width:400,margin:4,errorCorrectionLevel:'M'}):null;
   res.render('admin',{employees,rows,days,week,to,year,weekTitle:weekNumber(week),previous:addDays(week,-7),next:addDays(week,7),profiles,statusLabels,onsiteConfig:settings,ip:normalizeIp(req.ip),qrUrl,qrImage,open:open.rows,audits:audits.rows,plannedStatus,devices,currentDeviceId:req.session.deviceId || null});
 }));
+// Admin-only setup diagnostics: no cookies, credentials or arbitrary headers are exposed.
+app.get('/admin/network-info',auth,admin,(req,res)=>{
+  const addresses=String(req.headers['x-forwarded-for'] || '').split(',').map(value=>normalizeIp(value.trim()));
+  res.json({clientIp:normalizeIp(req.ip),socketAddress:normalizeIp(req.socket.remoteAddress),forwardedFor:addresses.filter(value=>isIP(value)),trustedProxyCount:Number(process.env.TRUST_PROXY || 0)});
+});
 app.post('/admin/devices/revoke',auth,admin,route(async(req,res)=>{
   const id=String(req.body.id || ''),why=reason(req.body.reason);
   if(!/^[a-f0-9-]{36}$/.test(id)) fail('Ungültige Geräteauswahl.');
