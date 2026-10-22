@@ -64,7 +64,7 @@ app.use(route(async(req,res,next)=>{
   req.session.csrf ||= randomBytes(24).toString('hex');
   res.locals.csrf=req.session.csrf; res.locals.user=null; res.locals.deviceLinked=false; res.locals.flash=req.session.flash || null;
   delete req.session.flash;
-  res.locals.duration=duration; res.locals.dayjs=dayjs; res.locals.TZ=TZ;
+  res.locals.duration=duration; res.locals.dayjs=dayjs; res.locals.TZ=TZ; res.locals.addDays=addDays;
   if(req.method==='POST' && !sameSecret(req.body._csrf,req.session.csrf)) fail('Die Sitzung ist abgelaufen. Seite neu laden und erneut versuchen.',403);
   if(req.session.user) {
     const {rows}=await pool.query('SELECT id,name,is_admin,schedule_profile,auth_version FROM employees WHERE id=$1 AND active=TRUE',[req.session.user.id]);
